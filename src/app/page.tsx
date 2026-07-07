@@ -1,11 +1,24 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/app/logout/actions";
 
-const NAV_BY_ROLE: Record<string, string[]> = {
-  manager: ["ลูกค้าทั้งหมด", "คิวตรวจสอบการชำระเงิน", "ประวัติลูกค้าเก่า", "Performance", "Settings"],
-  sales: ["ลูกค้าของฉัน", "ประวัติลูกค้าเก่า", "Performance"],
-  accounting: ["คิวตรวจสอบการชำระเงิน"],
+type NavItem = { label: string; href: string | null };
+
+const NAV_BY_ROLE: Record<string, NavItem[]> = {
+  manager: [
+    { label: "ลูกค้าทั้งหมด", href: "/customers" },
+    { label: "คิวตรวจสอบการชำระเงิน", href: null },
+    { label: "ประวัติลูกค้าเก่า", href: null },
+    { label: "Performance", href: null },
+    { label: "Settings", href: null },
+  ],
+  sales: [
+    { label: "ลูกค้าของฉัน", href: "/customers" },
+    { label: "ประวัติลูกค้าเก่า", href: null },
+    { label: "Performance", href: null },
+  ],
+  accounting: [{ label: "คิวตรวจสอบการชำระเงิน", href: null }],
 };
 
 export default async function DashboardHome() {
@@ -45,15 +58,22 @@ export default async function DashboardHome() {
       <aside className="w-56 shrink-0 border-r border-slate-200 bg-white p-5">
         <p className="mb-6 text-sm font-semibold text-slate-900">Igloo Broker CRM</p>
         <nav className="flex flex-col gap-1">
-          {navItems.map((item) => (
-            <span
-              key={item}
-              className="rounded-md px-3 py-2 text-sm text-slate-500"
-            >
-              {item}
-              <span className="ml-1 text-[10px] text-slate-400">(เร็วๆนี้)</span>
-            </span>
-          ))}
+          {navItems.map((item) =>
+            item.href ? (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="rounded-md px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                {item.label}
+              </Link>
+            ) : (
+              <span key={item.label} className="rounded-md px-3 py-2 text-sm text-slate-400">
+                {item.label}
+                <span className="ml-1 text-[10px] text-slate-400">(เร็วๆนี้)</span>
+              </span>
+            ),
+          )}
         </nav>
       </aside>
 
