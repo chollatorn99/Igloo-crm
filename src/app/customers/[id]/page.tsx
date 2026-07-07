@@ -1,6 +1,13 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { addFollowUpNote } from "./actions";
+
+const DEAL_STATUS_LABEL: Record<string, string> = {
+  pending: "กำลังติดตาม",
+  win: "Win",
+  lost: "Lost",
+};
 
 export default async function CustomerDetailPage({
   params,
@@ -24,6 +31,12 @@ export default async function CustomerDetailPage({
     .eq("customer_id", id)
     .order("created_at", { ascending: false });
 
+  const { data: policies } = await supabase
+    .from("policies")
+    .select("id, deal_status, insurance_company, net_premium, category:policy_categories(name)")
+    .eq("customer_id", id)
+    .order("created_at", { ascending: false });
+
   const addNote = addFollowUpNote.bind(null, id);
 
   return (
@@ -39,6 +52,45 @@ export default async function CustomerDetailPage({
           โทรไปแล้ว {customer.call_count} ครั้ง
           {customer.last_call_result ? ` · ล่าสุด: ${customer.last_call_result}` : ""}
         </p>
+      </div>
+
+      <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-700">กรมธรรม์</h2>
+          <Link
+            href={`/customers/${id}/policies/new`}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+          >
+            + เพิ่มกรมธรรม์
+          </Link>
+        </div>
+        <div className="space-y-2">
+          {policies?.map((p) => (
+            <Link
+              key={p.id}
+              href={`/policies/${p.id}`}
+              className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm hover:bg-slate-50"
+            >
+              <span>
+                {(p.category as { name: string } | null)?.name} ·{" "}
+                {p.insurance_company ?? "ยังไม่ระบุบริษัทประกัน"}
+                {p.net_premium != null && ` · ${Number(p.net_premium).toLocaleString()} บาท`}
+              </span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  p.deal_status === "win"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : p.deal_status === "lost"
+                      ? "bg-rose-100 text-rose-700"
+                      : "bg-amber-100 text-amber-700"
+                }`}
+              >
+                {DEAL_STATUS_LABEL[p.deal_status]}
+              </span>
+            </Link>
+          ))}
+          {policies?.length === 0 && <p className="text-sm text-slate-400">ยังไม่มีกรมธรรม์</p>}
+        </div>
       </div>
 
       <form action={addNote} className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
