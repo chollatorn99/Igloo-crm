@@ -17,6 +17,7 @@ export default async function NewCustomerPage() {
       .from("profiles")
       .select("id, full_name")
       .in("role", ["sales", "manager"])
+      .eq("status", "active")
       .order("full_name");
     salesOptions = data ?? [];
   }

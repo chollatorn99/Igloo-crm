@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createUser, deleteUser, updateCategoryDays, addCategory, bulkReassign } from "./actions";
+import { createUser, deleteUser, reactivateUser, updateCategoryDays, addCategory, bulkReassign } from "./actions";
 import { ActionButton, ActionForm } from "@/components/ActionForm";
 
 export default async function SettingsPage() {
@@ -17,6 +17,10 @@ export default async function SettingsPage() {
     supabase.from("policy_categories").select("id, name, renewal_reminder_days, active").order("name"),
   ]);
 
+  // Deactivated users stay listed (with a badge + reactivate) but are not
+  // valid targets for customer ownership.
+  const activeProfiles = profiles?.filter((p) => p.status === "active");
+
   return (
     <div className="mx-auto max-w-3xl space-y-8 p-8">
       <h1 className="text-lg font-semibold text-slate-900">Settings</h1>
@@ -29,10 +33,27 @@ export default async function SettingsPage() {
             <div key={p.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
               <span>
                 {p.full_name} <span className="ml-2 text-xs uppercase text-slate-400">{p.role}</span>
+                {p.status === "inactive" && (
+                  <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+                    ปิดใช้งานแล้ว
+                  </span>
+                )}
               </span>
-              <ActionForm action={deleteUser.bind(null, p.id)} confirmMessage={`ลบผู้ใช้ "${p.full_name}"?`}>
-                <ActionButton label="ลบ" className="text-rose-600 hover:underline" />
-              </ActionForm>
+              {p.status === "inactive" ? (
+                <ActionForm
+                  action={reactivateUser.bind(null, p.id)}
+                  confirmMessage={`เปิดใช้งาน "${p.full_name}" อีกครั้ง?`}
+                >
+                  <ActionButton label="เปิดใช้งาน" className="text-emerald-600 hover:underline" />
+                </ActionForm>
+              ) : (
+                <ActionForm
+                  action={deleteUser.bind(null, p.id)}
+                  confirmMessage={`ลบผู้ใช้ "${p.full_name}"? (ถ้ามีประวัติการใช้งาน ระบบจะปิดการใช้งานถาวรแทนการลบ)`}
+                >
+                  <ActionButton label="ลบ" className="text-rose-600 hover:underline" />
+                </ActionForm>
+              )}
             </div>
           ))}
         </div>
@@ -63,6 +84,7 @@ export default async function SettingsPage() {
               {profiles?.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.full_name}
+                  {p.status === "inactive" ? " (ปิดใช้งานแล้ว)" : ""}
                 </option>
               ))}
             </select>
@@ -70,7 +92,7 @@ export default async function SettingsPage() {
           <div>
             <label className="mb-1 block text-xs text-slate-500">ไปให้คน</label>
             <select name="to_owner_id" required className="rounded-md border border-slate-300 px-3 py-2 text-sm">
-              {profiles?.map((p) => (
+              {activeProfiles?.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.full_name}
                 </option>

@@ -31,7 +31,12 @@ export default async function CustomerDetailPage({
   if (!customer) notFound();
 
   const { data: salesOptions } = isManager
-    ? await supabase.from("profiles").select("id, full_name").in("role", ["sales", "manager"]).order("full_name")
+    ? await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("role", ["sales", "manager"])
+        .eq("status", "active")
+        .order("full_name")
     : { data: null };
 
   const { data: notes } = await supabase

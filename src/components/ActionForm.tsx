@@ -13,7 +13,7 @@ export function ActionForm({
   resetOnSuccess,
   successMessage,
 }: {
-  action: (formData: FormData) => Promise<{ error?: string } | void>;
+  action: (formData: FormData) => Promise<{ error?: string; message?: string } | void>;
   children: ReactNode;
   className?: string;
   confirmMessage?: string;
@@ -21,19 +21,21 @@ export function ActionForm({
   successMessage?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   async function handleSubmit(formData: FormData) {
     if (confirmMessage && !window.confirm(confirmMessage)) return;
     setError(null);
-    setSuccess(false);
+    setNotice(null);
     try {
       const result = await action(formData);
       if (result?.error) {
         setError(result.error);
       } else {
-        if (successMessage) setSuccess(true);
+        // A message returned by the action wins over the static
+        // successMessage — it can describe which outcome happened.
+        setNotice(result?.message ?? successMessage ?? null);
         if (resetOnSuccess) formRef.current?.reset();
       }
     } catch (err) {
@@ -45,7 +47,7 @@ export function ActionForm({
     <form ref={formRef} action={handleSubmit} className={className}>
       {children}
       {error && <p className="w-full text-xs text-red-600">{error}</p>}
-      {success && !error && <p className="w-full text-xs text-emerald-600">{successMessage}</p>}
+      {notice && !error && <p className="w-full text-xs text-emerald-600">{notice}</p>}
     </form>
   );
 }

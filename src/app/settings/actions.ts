@@ -8,8 +8,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // a generic "An error occurred in the Server Components render" message —
 // only visible with dev-mode testing, which is why this wasn't caught
 // earlier. Every action here returns { error } instead of throwing so the
-// real message actually reaches the client.
-type ActionResult = { error?: string };
+// real message actually reaches the client. `message` is an optional
+// success notice for actions whose outcome varies (e.g. delete vs deactivate).
+type ActionResult = { error?: string; message?: string };
 
 // Returns an error message if the caller isn't a manager, or null if they are.
 async function managerCheckError(
@@ -85,10 +86,52 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
   }
 
   const { error } = await admin.auth.admin.deleteUser(userId);
-  if (error) return { error: error.message };
+  if (error) {
+    // Audit rows (owner_change_log, payment_status_log, follow_up_notes)
+    // reference profiles with no cascade, so hard-deleting a user with any
+    // history fails on the FK — by design, the trail must survive. Fall
+    // back to a permanent deactivation: ban the auth account (can't log in
+    // again) and mark the profile inactive, keeping every audit row intact.
+    const { error: banError } = await admin.auth.admin.updateUserById(userId, {
+      ban_duration: "876000h", // ~100 years
+    });
+    if (banError) return { error: banError.message };
+
+    const { error: statusError } = await admin
+      .from("profiles")
+      .update({ status: "inactive" })
+      .eq("id", userId);
+    if (statusError) return { error: statusError.message };
+
+    revalidatePath("/settings");
+    return {
+      message: "ผู้ใช้นี้มีประวัติการใช้งานในระบบ จึงปิดการใช้งานถาวรแทนการลบ (login ไม่ได้อีก แต่ประวัติ audit ยังอยู่ครบ)",
+    };
+  }
 
   revalidatePath("/settings");
-  return {};
+  return { message: "ลบผู้ใช้แล้ว" };
+}
+
+export async function reactivateUser(userId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const authError = await managerCheckError(supabase);
+  if (authError) return { error: authError };
+  const admin = createAdminClient();
+
+  const { error: unbanError } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: "none",
+  });
+  if (unbanError) return { error: unbanError.message };
+
+  const { error: statusError } = await admin
+    .from("profiles")
+    .update({ status: "active" })
+    .eq("id", userId);
+  if (statusError) return { error: statusError.message };
+
+  revalidatePath("/settings");
+  return { message: "เปิดใช้งานผู้ใช้อีกครั้งแล้ว" };
 }
 
 export async function updateCategoryDays(categoryId: string, formData: FormData): Promise<ActionResult> {
