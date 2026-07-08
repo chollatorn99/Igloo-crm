@@ -11,25 +11,30 @@ export function ActionForm({
   className,
   confirmMessage,
   resetOnSuccess,
+  successMessage,
 }: {
   action: (formData: FormData) => Promise<{ error?: string } | void>;
   children: ReactNode;
   className?: string;
   confirmMessage?: string;
   resetOnSuccess?: boolean;
+  successMessage?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   async function handleSubmit(formData: FormData) {
     if (confirmMessage && !window.confirm(confirmMessage)) return;
     setError(null);
+    setSuccess(false);
     try {
       const result = await action(formData);
       if (result?.error) {
         setError(result.error);
-      } else if (resetOnSuccess) {
-        formRef.current?.reset();
+      } else {
+        if (successMessage) setSuccess(true);
+        if (resetOnSuccess) formRef.current?.reset();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
@@ -40,6 +45,7 @@ export function ActionForm({
     <form ref={formRef} action={handleSubmit} className={className}>
       {children}
       {error && <p className="w-full text-xs text-red-600">{error}</p>}
+      {success && !error && <p className="w-full text-xs text-emerald-600">{successMessage}</p>}
     </form>
   );
 }

@@ -39,7 +39,7 @@ export default async function SettingsPage() {
 
         <details className="rounded-lg border border-dashed border-slate-300 p-3">
           <summary className="cursor-pointer text-sm font-medium text-slate-600">+ เพิ่มผู้ใช้ใหม่</summary>
-          <ActionForm action={createUser} resetOnSuccess className="mt-3 space-y-2">
+          <ActionForm action={createUser} resetOnSuccess successMessage="เพิ่มผู้ใช้เรียบร้อยแล้ว" className="mt-3 space-y-2">
             <input name="full_name" placeholder="ชื่อ-นามสกุล" required className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
             <input name="email" type="email" placeholder="อีเมล" required className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
             <input name="password" type="password" placeholder="รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัว)" required className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
@@ -56,7 +56,7 @@ export default async function SettingsPage() {
       {/* Bulk reassign */}
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-sm font-semibold text-slate-700">โอนย้ายลูกค้าทั้งหมด (เผื่อพนักงานลาออก)</h2>
-        <ActionForm action={bulkReassign} className="flex flex-wrap items-end gap-2">
+        <ActionForm action={bulkReassign} successMessage="โอนย้ายลูกค้าเรียบร้อยแล้ว" className="flex flex-wrap items-end gap-2">
           <div>
             <label className="mb-1 block text-xs text-slate-500">จากคน</label>
             <select name="from_owner_id" required className="rounded-md border border-slate-300 px-3 py-2 text-sm">
@@ -89,7 +89,8 @@ export default async function SettingsPage() {
             <ActionForm
               key={c.id}
               action={updateCategoryDays.bind(null, c.id)}
-              className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm"
+              successMessage="บันทึกแล้ว"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 text-sm"
             >
               <span className="flex-1">{c.name}</span>
               <input
@@ -106,7 +107,7 @@ export default async function SettingsPage() {
 
         <details className="rounded-lg border border-dashed border-slate-300 p-3">
           <summary className="cursor-pointer text-sm font-medium text-slate-600">+ เพิ่มประเภทกรมธรรม์ใหม่</summary>
-          <ActionForm action={addCategory} resetOnSuccess className="mt-3 flex items-end gap-2">
+          <ActionForm action={addCategory} resetOnSuccess successMessage="เพิ่มประเภทกรมธรรม์แล้ว" className="mt-3 flex flex-wrap items-end gap-2">
             <input name="name" placeholder="ชื่อประเภท" required className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
             <input
               type="number"
