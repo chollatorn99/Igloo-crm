@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updatePolicyDetails } from "@/app/policies/actions";
+import { updatePolicyDetails } from "@/app/(app)/policies/actions";
 
 type Policy = {
   id: string;

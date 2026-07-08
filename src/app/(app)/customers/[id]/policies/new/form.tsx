@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createPolicy } from "@/app/policies/actions";
+import { createPolicy } from "@/app/(app)/policies/actions";
 
 export function NewPolicyForm({
   customerId,

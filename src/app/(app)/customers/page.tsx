@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { ExportButton } from "@/app/payments/export-button";
+import { ExportButton } from "@/app/(app)/payments/export-button";
 
 export default async function CustomersPage() {
   const supabase = await createClient();
