@@ -11,25 +11,58 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Finds the first character outside ISO-8859-1 (Latin-1, code points
+  // 0-255) — that's exactly what the browser's fetch() rejects with
+  // "String contains non ISO-8859-1 code point" when it ends up in a
+  // header. Password fields are masked, so a stray character from
+  // copy-paste (smart quotes, a non-breaking space, an invisible
+  // zero-width character) would otherwise be undiagnosable.
+  function findBadChar(label: string, value: string) {
+    for (let i = 0; i < value.length; i++) {
+      const code = value.charCodeAt(i);
+      if (code > 255) {
+        return `${label} มีตัวอักษรที่ระบบไม่รองรับที่ตำแหน่งที่ ${i + 1} (โค้ด U+${code.toString(16).toUpperCase().padStart(4, "0")}) — ลองลบแล้วพิมพ์ใหม่ทั้งหมดโดยไม่ copy-paste`;
+      }
+    }
+    return null;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
+    const badField = findBadChar("อีเมล", email) ?? findBadChar("รหัสผ่าน", password);
+    if (badField) {
+      setError(badField);
+      return;
+    }
+
+    setLoading(true);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    let signInError: { message: string; cause?: unknown } | null = null;
+    try {
+      const result = await supabase.auth.signInWithPassword({ email, password });
+      signInError = result.error;
+    } catch (err) {
+      signInError = {
+        message: err instanceof Error ? err.message : String(err),
+        cause: err instanceof Error ? err.cause : undefined,
+      };
+    }
 
     setLoading(false);
 
-    if (error) {
-      // Surface the real Supabase error instead of always blaming the
-      // password — "Invalid login credentials" really does mean wrong
-      // email/password, but other causes (rate limit, network, config)
-      // need to show their own message to be diagnosable.
+    if (signInError) {
+      // Surface the real error instead of always blaming the password —
+      // "Invalid login credentials" really does mean wrong email/password,
+      // but other causes (rate limit, network, config) need their own
+      // message to be diagnosable.
+      const causeText = signInError.cause ? ` (cause: ${String(signInError.cause)})` : "";
       setError(
-        error.message === "Invalid login credentials"
+        signInError.message === "Invalid login credentials"
           ? "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
-          : `เข้าสู่ระบบไม่สำเร็จ: ${error.message}`,
+          : `เข้าสู่ระบบไม่สำเร็จ: ${signInError.message}${causeText}`,
       );
       return;
     }
