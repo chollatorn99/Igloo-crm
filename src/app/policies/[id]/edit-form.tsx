@@ -37,8 +37,12 @@ export function PolicyEditForm({
     setError(null);
     setSaved(false);
     try {
-      await updatePolicyDetails(policy.id, formData);
-      setSaved(true);
+      const result = await updatePolicyDetails(policy.id, formData);
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        setSaved(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
     }

@@ -36,8 +36,12 @@ export default function ChangePasswordPage() {
       return;
     }
 
-    await clearMustChangePassword();
+    const clearResult = await clearMustChangePassword();
     setLoading(false);
+    if (clearResult?.error) {
+      setError(clearResult.error);
+      return;
+    }
     router.push("/");
     router.refresh();
   }

@@ -33,7 +33,11 @@ export function NewCustomerForm({
     setSubmitting(true);
     setError(null);
     try {
-      await createCustomer(formData);
+      const result = await createCustomer(formData);
+      if (result?.error) {
+        setSubmitting(false);
+        setError(result.error);
+      }
     } catch (err) {
       setSubmitting(false);
       setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");

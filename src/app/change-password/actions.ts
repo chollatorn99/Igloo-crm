@@ -3,12 +3,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function clearMustChangePassword() {
+export async function clearMustChangePassword(): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Not authenticated");
+    return { error: "Not authenticated" };
   }
 
   // Uses the service-role client because profiles has no client-writable
@@ -20,5 +20,6 @@ export async function clearMustChangePassword() {
     .update({ must_change_password: false })
     .eq("id", user.id);
 
-  if (error) throw error;
+  if (error) return { error: error.message };
+  return {};
 }

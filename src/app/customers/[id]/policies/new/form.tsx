@@ -19,7 +19,11 @@ export function NewPolicyForm({
     setSubmitting(true);
     setError(null);
     try {
-      await createPolicy(customerId, formData);
+      const result = await createPolicy(customerId, formData);
+      if (result?.error) {
+        setSubmitting(false);
+        setError(result.error);
+      }
     } catch (err) {
       setSubmitting(false);
       setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");

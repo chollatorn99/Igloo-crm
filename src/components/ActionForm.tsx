@@ -2,6 +2,9 @@
 
 import { useRef, useState, type ReactNode } from "react";
 
+// Wraps a <form> whose action is a Server Action returning { error?: string }
+// (never throwing — Next.js redacts thrown Server Action error messages in
+// production builds, so validation errors must come back as data instead).
 export function ActionForm({
   action,
   children,
@@ -9,7 +12,7 @@ export function ActionForm({
   confirmMessage,
   resetOnSuccess,
 }: {
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => Promise<{ error?: string } | void>;
   children: ReactNode;
   className?: string;
   confirmMessage?: string;
@@ -22,8 +25,12 @@ export function ActionForm({
     if (confirmMessage && !window.confirm(confirmMessage)) return;
     setError(null);
     try {
-      await action(formData);
-      if (resetOnSuccess) formRef.current?.reset();
+      const result = await action(formData);
+      if (result?.error) {
+        setError(result.error);
+      } else if (resetOnSuccess) {
+        formRef.current?.reset();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
     }

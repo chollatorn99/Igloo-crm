@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { addFollowUpNote, reassignOwner } from "./actions";
+import { ActionForm } from "@/components/ActionForm";
 
 const DEAL_STATUS_LABEL: Record<string, string> = {
   pending: "กำลังติดตาม",
@@ -63,7 +64,7 @@ export default async function CustomerDetailPage({
         </p>
 
         {isManager && salesOptions && (
-          <form action={reassign} className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
+          <ActionForm action={reassign} className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
             <label className="text-xs text-slate-500">โอนย้ายเจ้าของ:</label>
             <select
               name="owner_id"
@@ -79,7 +80,7 @@ export default async function CustomerDetailPage({
             <button className="rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200">
               โอนย้าย
             </button>
-          </form>
+          </ActionForm>
         )}
       </div>
 
@@ -122,7 +123,7 @@ export default async function CustomerDetailPage({
         </div>
       </div>
 
-      <form action={addNote} className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+      <ActionForm action={addNote} className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
         <label className="mb-1 block text-xs font-medium text-slate-600">บันทึกผลการโทร / ติดตาม</label>
         <textarea
           name="note_text"
@@ -136,7 +137,7 @@ export default async function CustomerDetailPage({
         >
           บันทึก
         </button>
-      </form>
+      </ActionForm>
 
       <h2 className="mb-3 text-sm font-semibold text-slate-700">ประวัติการติดตาม</h2>
       <div className="space-y-3">

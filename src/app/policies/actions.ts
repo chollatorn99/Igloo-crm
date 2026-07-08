@@ -4,6 +4,13 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
+// Next.js redacts thrown Server Action errors in production builds down to
+// a generic message — only visible with dev-mode testing. Every action
+// here returns { error } instead of throwing so the real message reaches
+// the client. redirect() is unaffected (it's Next's own control-flow
+// signal, not a regular thrown Error) so success paths are unchanged.
+type ActionResult = { error?: string };
+
 function numOrNull(v: FormDataEntryValue | null) {
   const s = String(v ?? "").trim();
   return s === "" ? null : Number(s);
@@ -13,7 +20,7 @@ function strOrNull(v: FormDataEntryValue | null) {
   return s === "" ? null : s;
 }
 
-export async function createPolicy(customerId: string, formData: FormData) {
+export async function createPolicy(customerId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -37,12 +44,12 @@ export async function createPolicy(customerId: string, formData: FormData) {
     .select("id")
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   redirect(`/policies/${data.id}`);
 }
 
-export async function updatePolicyDetails(policyId: string, formData: FormData) {
+export async function updatePolicyDetails(policyId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -65,11 +72,12 @@ export async function updatePolicyDetails(policyId: string, formData: FormData) 
     })
     .eq("id", policyId);
 
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath(`/policies/${policyId}`);
+  return {};
 }
 
-export async function setDealStatus(policyId: string, status: "win" | "lost") {
+export async function setDealStatus(policyId: string, status: "win" | "lost"): Promise<ActionResult> {
   const supabase = await createClient();
 
   if (status === "win") {
@@ -80,7 +88,7 @@ export async function setDealStatus(policyId: string, status: "win" | "lost") {
       .single();
 
     if (!policy?.insurance_company || policy.net_premium == null) {
-      throw new Error("ต้องกรอกบริษัทประกันและยอดประกันสุทธิก่อนปิดดีลเป็น Win");
+      return { error: "ต้องกรอกบริษัทประกันและยอดประกันสุทธิก่อนปิดดีลเป็น Win" };
     }
   }
 
@@ -89,11 +97,12 @@ export async function setDealStatus(policyId: string, status: "win" | "lost") {
     .update({ deal_status: status })
     .eq("id", policyId);
 
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath(`/policies/${policyId}`);
+  return {};
 }
 
-export async function reportPaymentTransfer(policyId: string, formData: FormData) {
+export async function reportPaymentTransfer(policyId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -105,14 +114,19 @@ export async function reportPaymentTransfer(policyId: string, formData: FormData
     })
     .eq("id", policyId);
 
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath(`/policies/${policyId}`);
+  return {};
 }
 
-export async function verifyPayment(policyId: string, decision: "verified" | "rejected", note?: string) {
+export async function verifyPayment(
+  policyId: string,
+  decision: "verified" | "rejected",
+  note?: string,
+): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  if (!user) return { error: "Not authenticated" };
 
   const { error } = await supabase
     .from("policies")
@@ -124,6 +138,7 @@ export async function verifyPayment(policyId: string, decision: "verified" | "re
     })
     .eq("id", policyId);
 
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath(`/policies/${policyId}`);
+  return {};
 }

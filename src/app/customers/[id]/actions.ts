@@ -3,18 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-export async function addFollowUpNote(customerId: string, formData: FormData) {
+type ActionResult = { error?: string };
+
+export async function addFollowUpNote(customerId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  if (!user) return { error: "Not authenticated" };
 
   const note_text = String(formData.get("note_text") ?? "").trim();
-  if (!note_text) return;
+  if (!note_text) return {};
 
   const { error: noteError } = await supabase
     .from("follow_up_notes")
     .insert({ customer_id: customerId, author_id: user.id, note_text });
-  if (noteError) throw new Error(noteError.message);
+  if (noteError) return { error: noteError.message };
 
   // Every logged call counts toward the call-count metric — matches the
   // requirement that call counts come from logging a note, not a separate entry.
@@ -30,17 +32,19 @@ export async function addFollowUpNote(customerId: string, formData: FormData) {
     .eq("id", customerId);
 
   revalidatePath(`/customers/${customerId}`);
+  return {};
 }
 
-export async function reassignOwner(customerId: string, formData: FormData) {
+export async function reassignOwner(customerId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
   const newOwnerId = String(formData.get("owner_id") ?? "");
-  if (!newOwnerId) return;
+  if (!newOwnerId) return {};
 
   // enforce_owner_change trigger blocks this for non-managers and writes
   // the audit log row — this is just the UI trigger for it.
   const { error } = await supabase.from("customers").update({ owner_id: newOwnerId }).eq("id", customerId);
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   revalidatePath(`/customers/${customerId}`);
+  return {};
 }

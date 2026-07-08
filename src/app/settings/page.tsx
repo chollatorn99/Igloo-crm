@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createUser, deleteUser, updateCategoryDays, addCategory, bulkReassign } from "./actions";
-import { ActionButton, ActionForm } from "./client-parts";
+import { ActionButton, ActionForm } from "@/components/ActionForm";
 
 export default async function SettingsPage() {
   const supabase = await createClient();

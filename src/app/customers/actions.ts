@@ -10,10 +10,10 @@ export async function checkDuplicatePhone(phone: string) {
   return data ?? [];
 }
 
-export async function createCustomer(formData: FormData) {
+export async function createCustomer(formData: FormData): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  if (!user) return { error: "Not authenticated" };
 
   const name = String(formData.get("name") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim() || null;
@@ -21,7 +21,7 @@ export async function createCustomer(formData: FormData) {
   const ownerIdInput = String(formData.get("owner_id") ?? "");
   const owner_id = ownerIdInput || user.id;
 
-  if (!name) throw new Error("กรุณากรอกชื่อลูกค้า");
+  if (!name) return { error: "กรุณากรอกชื่อลูกค้า" };
 
   const { data, error } = await supabase
     .from("customers")
@@ -29,7 +29,7 @@ export async function createCustomer(formData: FormData) {
     .select("id")
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   redirect(`/customers/${data.id}`);
 }

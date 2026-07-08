@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { setDealStatus, reportPaymentTransfer, verifyPayment } from "../actions";
 import { PolicyEditForm } from "./edit-form";
+import { ActionForm } from "@/components/ActionForm";
 
 const DEAL_STATUS_LABEL: Record<string, string> = {
   pending: "กำลังติดตาม",
@@ -84,18 +85,18 @@ export default async function PolicyDetailPage({
       </div>
 
       {policy.deal_status === "pending" && isOwnerOrManager && (
-        <div className="mb-6 flex gap-2 rounded-xl border border-slate-200 bg-white p-4">
-          <form action={markWin}>
+        <div className="mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-4">
+          <ActionForm action={markWin}>
             <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
               ปิดดีล Win
             </button>
-          </form>
-          <form action={markLost}>
+          </ActionForm>
+          <ActionForm action={markLost}>
             <button className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
               ปิดดีล Lost
             </button>
-          </form>
-          <p className="ml-2 self-center text-xs text-slate-400">
+          </ActionForm>
+          <p className="text-xs text-slate-400">
             (ต้องกรอกบริษัทประกัน+เบี้ยประกันก่อนจะปิด Win ได้)
           </p>
         </div>
@@ -111,7 +112,7 @@ export default async function PolicyDetailPage({
           </p>
 
           {policy.payment_status === "awaiting_payment" && isOwnerOrManager && (
-            <form action={reportTransfer} className="flex flex-wrap items-end gap-2">
+            <ActionForm action={reportTransfer} className="flex flex-wrap items-end gap-2">
               <div>
                 <label className="mb-1 block text-xs text-slate-500">เลขอ้างอิงการโอน</label>
                 <input name="payment_reference" required className="rounded-md border border-slate-300 px-3 py-1.5 text-sm" />
@@ -123,21 +124,21 @@ export default async function PolicyDetailPage({
               <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
                 แจ้งโอนแล้ว
               </button>
-            </form>
+            </ActionForm>
           )}
 
           {policy.payment_status === "awaiting_verification" && (role === "accounting" || role === "manager") && (
-            <div className="flex gap-2">
-              <form action={markVerified}>
+            <div className="flex flex-wrap gap-2">
+              <ActionForm action={markVerified}>
                 <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
                   ตรวจสอบแล้ว
                 </button>
-              </form>
-              <form action={markRejected}>
+              </ActionForm>
+              <ActionForm action={markRejected}>
                 <button className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700">
                   สลิปไม่ผ่าน
                 </button>
-              </form>
+              </ActionForm>
             </div>
           )}
 
