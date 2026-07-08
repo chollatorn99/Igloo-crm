@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { ExportButton } from "@/app/payments/export-button";
 
 export default async function CustomersPage() {
   const supabase = await createClient();
@@ -8,6 +9,15 @@ export default async function CustomersPage() {
     .from("customers")
     .select("id, name, phone, customer_type, call_count, last_call_result, owner:profiles(full_name)")
     .order("created_at", { ascending: false });
+
+  const exportRows = (customers ?? []).map((c) => ({
+    ชื่อ: c.name,
+    เบอร์โทร: c.phone,
+    ประเภท: c.customer_type === "organization" ? "องค์กร" : "บุคคล",
+    เจ้าของ: (c.owner as { full_name: string } | null)?.full_name,
+    จำนวนครั้งที่โทร: c.call_count,
+    ผลล่าสุด: c.last_call_result,
+  }));
 
   return (
     <div className="p-8">
@@ -18,12 +28,15 @@ export default async function CustomersPage() {
             {customers?.length ?? 0} รายการ — เห็นตามสิทธิ์ของบัญชีคุณ
           </p>
         </div>
-        <Link
-          href="/customers/new"
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          + เพิ่มลูกค้า
-        </Link>
+        <div className="flex gap-2">
+          <ExportButton rows={exportRows} filename="customers" />
+          <Link
+            href="/customers/new"
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            + เพิ่มลูกค้า
+          </Link>
+        </div>
       </div>
 
       {error && (

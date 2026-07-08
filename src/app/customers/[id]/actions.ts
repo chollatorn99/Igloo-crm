@@ -31,3 +31,16 @@ export async function addFollowUpNote(customerId: string, formData: FormData) {
 
   revalidatePath(`/customers/${customerId}`);
 }
+
+export async function reassignOwner(customerId: string, formData: FormData) {
+  const supabase = await createClient();
+  const newOwnerId = String(formData.get("owner_id") ?? "");
+  if (!newOwnerId) return;
+
+  // enforce_owner_change trigger blocks this for non-managers and writes
+  // the audit log row — this is just the UI trigger for it.
+  const { error } = await supabase.from("customers").update({ owner_id: newOwnerId }).eq("id", customerId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/customers/${customerId}`);
+}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { addFollowUpNote } from "./actions";
+import { addFollowUpNote, reassignOwner } from "./actions";
 
 const DEAL_STATUS_LABEL: Record<string, string> = {
   pending: "กำลังติดตาม",
@@ -17,13 +17,21 @@ export default async function CustomerDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: myProfile } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
+  const isManager = myProfile?.role === "manager";
+
   const { data: customer } = await supabase
     .from("customers")
-    .select("id, name, phone, customer_type, call_count, last_call_result, owner:profiles(full_name)")
+    .select("id, name, phone, customer_type, call_count, last_call_result, owner_id, owner:profiles(full_name)")
     .eq("id", id)
     .single();
 
   if (!customer) notFound();
+
+  const { data: salesOptions } = isManager
+    ? await supabase.from("profiles").select("id, full_name").in("role", ["sales", "manager"]).order("full_name")
+    : { data: null };
 
   const { data: notes } = await supabase
     .from("follow_up_notes")
@@ -38,6 +46,7 @@ export default async function CustomerDetailPage({
     .order("created_at", { ascending: false });
 
   const addNote = addFollowUpNote.bind(null, id);
+  const reassign = reassignOwner.bind(null, id);
 
   return (
     <div className="mx-auto max-w-2xl p-8">
@@ -52,6 +61,26 @@ export default async function CustomerDetailPage({
           โทรไปแล้ว {customer.call_count} ครั้ง
           {customer.last_call_result ? ` · ล่าสุด: ${customer.last_call_result}` : ""}
         </p>
+
+        {isManager && salesOptions && (
+          <form action={reassign} className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
+            <label className="text-xs text-slate-500">โอนย้ายเจ้าของ:</label>
+            <select
+              name="owner_id"
+              defaultValue={customer.owner_id}
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+            >
+              {salesOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.full_name}
+                </option>
+              ))}
+            </select>
+            <button className="rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200">
+              โอนย้าย
+            </button>
+          </form>
+        )}
       </div>
 
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">

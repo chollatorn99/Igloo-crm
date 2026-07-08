@@ -8,17 +8,19 @@ type NavItem = { label: string; href: string | null };
 const NAV_BY_ROLE: Record<string, NavItem[]> = {
   manager: [
     { label: "ลูกค้าทั้งหมด", href: "/customers" },
-    { label: "คิวตรวจสอบการชำระเงิน", href: null },
-    { label: "ประวัติลูกค้าเก่า", href: null },
-    { label: "Performance", href: null },
-    { label: "Settings", href: null },
+    { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
+    { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
+    { label: "ประวัติลูกค้าเก่า", href: "/history" },
+    { label: "Performance", href: "/performance" },
+    { label: "Settings", href: "/settings" },
   ],
   sales: [
     { label: "ลูกค้าของฉัน", href: "/customers" },
-    { label: "ประวัติลูกค้าเก่า", href: null },
-    { label: "Performance", href: null },
+    { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
+    { label: "ประวัติลูกค้าเก่า", href: "/history" },
+    { label: "Performance", href: "/performance" },
   ],
-  accounting: [{ label: "คิวตรวจสอบการชำระเงิน", href: null }],
+  accounting: [{ label: "คิวตรวจสอบการชำระเงิน", href: "/payments" }],
 };
 
 export default async function DashboardHome() {
@@ -98,7 +100,7 @@ export default async function DashboardHome() {
         </div>
 
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-500">
-          Login และแบ่ง role ทำงานแล้ว — ฟีเจอร์จัดการลูกค้า/กรมธรรม์กำลังจะตามมาในขั้นตอนถัดไป
+          เลือกเมนูด้านซ้ายเพื่อเริ่มใช้งาน
         </div>
       </main>
     </div>
