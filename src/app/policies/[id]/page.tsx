@@ -48,7 +48,7 @@ export default async function PolicyDetailPage({
   ]);
 
   const role = profile?.role;
-  const customer = policy.customer as { id: string; name: string; owner_id: string };
+  const customer = policy.customer as unknown as { id: string; name: string; owner_id: string };
   const isOwnerOrManager = role === "manager" || customer.owner_id === user!.id;
 
   const markWin = setDealStatus.bind(null, id, "win");
@@ -66,7 +66,7 @@ export default async function PolicyDetailPage({
       <div className="mb-6 flex items-center justify-between rounded-xl border border-slate-200 bg-white p-6">
         <div>
           <h1 className="text-lg font-semibold text-slate-900">
-            {(policy.category as { name: string }).name}
+            {(policy.category as unknown as { name: string }).name}
           </h1>
           <p className="text-xs text-slate-500">{policy.insurance_company ?? "ยังไม่ระบุบริษัทประกัน"}</p>
         </div>
@@ -143,7 +143,7 @@ export default async function PolicyDetailPage({
 
           {policy.verifier && (
             <p className="mt-2 text-xs text-slate-400">
-              ตรวจสอบโดย {(policy.verifier as { full_name: string }).full_name}
+              ตรวจสอบโดย {(policy.verifier as unknown as { full_name: string }).full_name}
               {policy.verified_at && ` เมื่อ ${new Date(policy.verified_at).toLocaleString("th-TH")}`}
             </p>
           )}

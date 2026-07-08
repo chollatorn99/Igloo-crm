@@ -40,7 +40,7 @@ export default async function HistoryPage({
   >();
 
   for (const p of policies ?? []) {
-    const customer = p.customer as { id: string; name: string; phone: string | null };
+    const customer = p.customer as unknown as { id: string; name: string; phone: string | null };
     const y = new Date(p.closed_date as string).getFullYear();
     const isActive = p.coverage_end_date ? new Date(p.coverage_end_date) >= today : false;
 

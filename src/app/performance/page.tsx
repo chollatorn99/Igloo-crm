@@ -44,7 +44,7 @@ export default async function PerformancePage() {
   }
 
   for (const p of policies ?? []) {
-    const ownerId = (p.customer as { owner_id: string } | null)?.owner_id;
+    const ownerId = (p.customer as unknown as { owner_id: string } | null)?.owner_id;
     if (!ownerId) continue;
     const s = get(ownerId);
     if (p.deal_status === "win") {

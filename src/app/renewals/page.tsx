@@ -18,7 +18,7 @@ export default async function RenewalsPage() {
 
   const due = (policies ?? [])
     .map((p) => {
-      const category = p.category as { name: string; renewal_reminder_days: number } | null;
+      const category = p.category as unknown as { name: string; renewal_reminder_days: number } | null;
       const endDate = new Date(p.coverage_end_date as string);
       const daysLeft = Math.round((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       return { ...p, category, daysLeft };
@@ -46,7 +46,7 @@ export default async function RenewalsPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {due.map((p) => {
-              const customer = p.customer as { id: string; name: string; phone: string | null };
+              const customer = p.customer as unknown as { id: string; name: string; phone: string | null };
               return (
                 <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">

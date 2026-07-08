@@ -14,7 +14,7 @@ export default async function CustomersPage() {
     ชื่อ: c.name,
     เบอร์โทร: c.phone,
     ประเภท: c.customer_type === "organization" ? "องค์กร" : "บุคคล",
-    เจ้าของ: (c.owner as { full_name: string } | null)?.full_name,
+    เจ้าของ: (c.owner as unknown as { full_name: string } | null)?.full_name,
     จำนวนครั้งที่โทร: c.call_count,
     ผลล่าสุด: c.last_call_result,
   }));
@@ -67,7 +67,7 @@ export default async function CustomersPage() {
                 <td className="px-4 py-3 text-slate-600">
                   {c.customer_type === "organization" ? "องค์กร" : "บุคคล"}
                 </td>
-                <td className="px-4 py-3 text-slate-600">{(c.owner as { full_name: string } | null)?.full_name ?? "-"}</td>
+                <td className="px-4 py-3 text-slate-600">{(c.owner as unknown as { full_name: string } | null)?.full_name ?? "-"}</td>
                 <td className="px-4 py-3 text-slate-600">{c.call_count}</td>
                 <td className="px-4 py-3 text-slate-600">{c.last_call_result ?? "-"}</td>
               </tr>

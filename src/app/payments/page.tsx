@@ -38,8 +38,8 @@ export default async function PaymentsQueuePage({
   ];
 
   const exportRows = (policies ?? []).map((p) => ({
-    ลูกค้า: (p.customer as { name: string } | null)?.name,
-    ประเภท: (p.category as { name: string } | null)?.name,
+    ลูกค้า: (p.customer as unknown as { name: string } | null)?.name,
+    ประเภท: (p.category as unknown as { name: string } | null)?.name,
     เบี้ยประกัน: p.net_premium,
     ค่าคอมบริษัท: p.company_commission_amount,
     ค่าคอมAgent: p.agent_commission_amount,
@@ -91,10 +91,10 @@ export default async function PaymentsQueuePage({
               <tr key={p.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
                   <Link href={`/policies/${p.id}`} className="font-medium text-slate-900 hover:underline">
-                    {(p.customer as { name: string } | null)?.name}
+                    {(p.customer as unknown as { name: string } | null)?.name}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{(p.category as { name: string } | null)?.name}</td>
+                <td className="px-4 py-3 text-slate-600">{(p.category as unknown as { name: string } | null)?.name}</td>
                 <td className="px-4 py-3 font-mono text-slate-600">
                   {Number(p.net_premium ?? 0).toLocaleString()}
                 </td>

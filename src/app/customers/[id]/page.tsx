@@ -55,7 +55,7 @@ export default async function CustomerDetailPage({
         <p className="mt-1 text-sm text-slate-500">
           {customer.customer_type === "organization" ? "องค์กร" : "บุคคล"} ·{" "}
           {customer.phone ?? "ไม่มีเบอร์โทร"} · เจ้าของ:{" "}
-          {(customer.owner as { full_name: string } | null)?.full_name ?? "-"}
+          {(customer.owner as unknown as { full_name: string } | null)?.full_name ?? "-"}
         </p>
         <p className="mt-1 text-xs text-slate-400">
           โทรไปแล้ว {customer.call_count} ครั้ง
@@ -101,7 +101,7 @@ export default async function CustomerDetailPage({
               className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm hover:bg-slate-50"
             >
               <span>
-                {(p.category as { name: string } | null)?.name} ·{" "}
+                {(p.category as unknown as { name: string } | null)?.name} ·{" "}
                 {p.insurance_company ?? "ยังไม่ระบุบริษัทประกัน"}
                 {p.net_premium != null && ` · ${Number(p.net_premium).toLocaleString()} บาท`}
               </span>
@@ -144,7 +144,7 @@ export default async function CustomerDetailPage({
           <div key={n.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
             <p className="text-slate-800">{n.note_text}</p>
             <p className="mt-1 text-xs text-slate-400">
-              {(n.author as { full_name: string } | null)?.full_name ?? "-"} ·{" "}
+              {(n.author as unknown as { full_name: string } | null)?.full_name ?? "-"} ·{" "}
               {new Date(n.created_at).toLocaleString("th-TH")}
             </p>
           </div>
