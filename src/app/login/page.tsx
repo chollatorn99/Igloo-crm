@@ -22,7 +22,15 @@ export default function LoginPage() {
     setLoading(false);
 
     if (error) {
-      setError("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+      // Surface the real Supabase error instead of always blaming the
+      // password — "Invalid login credentials" really does mean wrong
+      // email/password, but other causes (rate limit, network, config)
+      // need to show their own message to be diagnosable.
+      setError(
+        error.message === "Invalid login credentials"
+          ? "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
+          : `เข้าสู่ระบบไม่สำเร็จ: ${error.message}`,
+      );
       return;
     }
 
