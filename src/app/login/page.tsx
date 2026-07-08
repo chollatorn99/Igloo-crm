@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { PasswordInput } from "@/components/PasswordInput";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -90,13 +91,9 @@ export default function LoginPage() {
         />
 
         <label className="mb-1 block text-xs font-medium text-slate-600">รหัสผ่าน</label>
-        <input
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="mb-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
-        />
+        <div className="mb-4">
+          <PasswordInput value={password} onChange={setPassword} required />
+        </div>
 
         {error && <p className="mb-4 text-xs text-red-600">{error}</p>}
 

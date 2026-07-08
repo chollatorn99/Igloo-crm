@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { PasswordInput } from "@/components/PasswordInput";
 import { clearMustChangePassword } from "./actions";
 
 export default function ChangePasswordPage() {
@@ -53,22 +54,14 @@ export default function ChangePasswordPage() {
         </p>
 
         <label className="mb-1 block text-xs font-medium text-slate-600">รหัสผ่านใหม่</label>
-        <input
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="mb-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
-        />
+        <div className="mb-4">
+          <PasswordInput value={password} onChange={setPassword} required />
+        </div>
 
         <label className="mb-1 block text-xs font-medium text-slate-600">ยืนยันรหัสผ่านใหม่</label>
-        <input
-          type="password"
-          required
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          className="mb-4 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
-        />
+        <div className="mb-4">
+          <PasswordInput value={confirm} onChange={setConfirm} required />
+        </div>
 
         {error && <p className="mb-4 text-xs text-red-600">{error}</p>}
 
