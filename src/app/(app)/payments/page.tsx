@@ -17,12 +17,16 @@ export default async function PaymentsQueuePage({
   const { status } = await searchParams;
   const supabase = await createClient();
 
+  // Only deals actually in the payment workflow — imported historical wins
+  // have payment_status null and would otherwise flood this queue. This
+  // also keeps the result well under Supabase's 1000-row cap.
   let query = supabase
     .from("policies")
     .select(
       "id, payment_status, payment_reference, payment_date, net_premium, company_commission_amount, agent_commission_amount, net_commission_to_igloo, closed_date, category:policy_categories(name), customer:customers(id, name)",
     )
     .eq("deal_status", "win")
+    .not("payment_status", "is", null)
     .order("closed_date", { ascending: false });
 
   if (status) query = query.eq("payment_status", status);

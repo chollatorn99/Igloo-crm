@@ -1,4 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/fetchAll";
+
+type NoteRow = { author_id: string; created_at: string };
+type PerfPolicyRow = {
+  deal_status: string;
+  net_premium: number | null;
+  closed_date: string | null;
+  customer: { owner_id: string } | null;
+};
 
 function startOfDaysAgo(days: number) {
   const d = new Date();
@@ -14,13 +23,23 @@ export default async function PerformancePage() {
   const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user!.id).single();
   const isManager = profile?.role === "manager";
 
-  const [{ data: profiles }, { data: notes }, { data: policies }] = await Promise.all([
+  const [{ data: profiles }, notes, policies] = await Promise.all([
     supabase.from("profiles").select("id, full_name").in("role", ["sales", "manager"]),
-    supabase.from("follow_up_notes").select("author_id, created_at"),
-    supabase
-      .from("policies")
-      .select("deal_status, net_premium, closed_date, customer:customers(owner_id)")
-      .in("deal_status", ["win", "lost"]),
+    fetchAll<NoteRow>((from, to) =>
+      supabase
+        .from("follow_up_notes")
+        .select("author_id, created_at")
+        .order("created_at")
+        .range(from, to) as unknown as PromiseLike<{ data: NoteRow[] | null; error: { message: string } | null }>,
+    ),
+    fetchAll<PerfPolicyRow>((from, to) =>
+      supabase
+        .from("policies")
+        .select("deal_status, net_premium, closed_date, customer:customers(owner_id)")
+        .in("deal_status", ["win", "lost"])
+        .order("created_at")
+        .range(from, to) as unknown as PromiseLike<{ data: PerfPolicyRow[] | null; error: { message: string } | null }>,
+    ),
   ]);
 
   const today = startOfDaysAgo(0);
@@ -35,7 +54,7 @@ export default async function PerformancePage() {
     return byUser.get(id)!;
   };
 
-  for (const n of notes ?? []) {
+  for (const n of notes) {
     const created = new Date(n.created_at);
     const s = get(n.author_id);
     if (created >= today) s.calls_today++;
@@ -43,8 +62,8 @@ export default async function PerformancePage() {
     if (created >= d30) s.calls_30d++;
   }
 
-  for (const p of policies ?? []) {
-    const ownerId = (p.customer as unknown as { owner_id: string } | null)?.owner_id;
+  for (const p of policies) {
+    const ownerId = p.customer?.owner_id;
     if (!ownerId) continue;
     const s = get(ownerId);
     if (p.deal_status === "win") {

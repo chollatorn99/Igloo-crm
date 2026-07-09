@@ -1,38 +1,69 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/fetchAll";
+
+type PolicyRow = {
+  id: string;
+  coverage_end_date: string;
+  insurance_company: string | null;
+  category: { name: string; renewal_reminder_days: number } | null;
+  customer: { id: string; name: string; phone: string | null } | null;
+};
+
+// How far past expiry a policy still counts as "urgent follow-up" rather
+// than a lost/win-back case (those live on the history page).
+const OVERDUE_GRACE_DAYS = 30;
 
 export default async function RenewalsPage() {
   const supabase = await createClient();
 
-  const { data: policies } = await supabase
-    .from("policies")
-    .select(
-      "id, coverage_end_date, insurance_company, category:policy_categories(name, renewal_reminder_days), customer:customers(id, name, phone, owner_id)",
-    )
-    .eq("deal_status", "win")
-    .not("coverage_end_date", "is", null)
-    .order("coverage_end_date", { ascending: true });
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const floor = new Date(today.getTime() - OVERDUE_GRACE_DAYS * 86400e3).toISOString().slice(0, 10);
 
-  const due = (policies ?? [])
+  const policies = await fetchAll<PolicyRow>((from, to) =>
+    supabase
+      .from("policies")
+      .select(
+        "id, coverage_end_date, insurance_company, category:policy_categories(name, renewal_reminder_days), customer:customers(id, name, phone)",
+      )
+      .eq("deal_status", "win")
+      .gte("coverage_end_date", floor)
+      .order("coverage_end_date", { ascending: true })
+      .range(from, to) as unknown as PromiseLike<{ data: PolicyRow[] | null; error: { message: string } | null }>,
+  );
+
+  // One reminder per customer+category, based on their newest policy — an
+  // already-renewed customer's newest end date falls outside the reminder
+  // window, so they drop off the list automatically.
+  const latestByGroup = new Map<string, PolicyRow>();
+  for (const p of policies) {
+    if (!p.customer || !p.category) continue;
+    const key = `${p.customer.id}|${p.category.name}`;
+    const current = latestByGroup.get(key);
+    if (!current || p.coverage_end_date > current.coverage_end_date) {
+      latestByGroup.set(key, p);
+    }
+  }
+
+  const due = [...latestByGroup.values()]
     .map((p) => {
-      const category = p.category as unknown as { name: string; renewal_reminder_days: number } | null;
-      const endDate = new Date(p.coverage_end_date as string);
-      const daysLeft = Math.round((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return { ...p, category, daysLeft };
+      const endDate = new Date(p.coverage_end_date);
+      const daysLeft = Math.round((endDate.getTime() - today.getTime()) / 86400e3);
+      return { ...p, daysLeft };
     })
-    .filter((p) => p.category && p.daysLeft <= p.category.renewal_reminder_days);
+    .filter((p) => p.daysLeft <= (p.category?.renewal_reminder_days ?? 120))
+    .sort((a, b) => a.daysLeft - b.daysLeft);
 
   return (
     <div className="p-8">
       <h1 className="mb-1 text-lg font-semibold text-slate-900">แจ้งเตือนต่ออายุ</h1>
       <p className="mb-6 text-xs text-slate-500">
-        {due.length} รายการ — เรียงจากใกล้หมดอายุที่สุด (เกณฑ์วันแจ้งเตือนต่างกันตามประเภทกรมธรรม์)
+        {due.length} รายการ — กรมธรรม์ล่าสุดของลูกค้าแต่ละราย/ประเภท ที่ใกล้หมดอายุ (รวมที่เพิ่งเกินกำหนดไม่เกิน{" "}
+        {OVERDUE_GRACE_DAYS} วัน) — ลูกค้าที่ขาดต่อนานแล้วอยู่ในหน้า &quot;ประวัติลูกค้าเก่า&quot;
       </p>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -45,35 +76,32 @@ export default async function RenewalsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {due.map((p) => {
-              const customer = p.customer as unknown as { id: string; name: string; phone: string | null };
-              return (
-                <tr key={p.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    <Link href={`/customers/${customer.id}`} className="font-medium text-slate-900 hover:underline">
-                      {customer.name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-600">{customer.phone ?? "-"}</td>
-                  <td className="px-4 py-3 text-slate-600">{p.category?.name}</td>
-                  <td className="px-4 py-3 text-slate-600">{p.insurance_company ?? "-"}</td>
-                  <td className="px-4 py-3 text-slate-600">{p.coverage_end_date}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        p.daysLeft < 0
-                          ? "bg-rose-100 text-rose-700"
-                          : p.daysLeft <= 14
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {p.daysLeft < 0 ? `เกิน ${Math.abs(p.daysLeft)} วัน` : `${p.daysLeft} วัน`}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
+            {due.map((p) => (
+              <tr key={p.id} className="hover:bg-slate-50">
+                <td className="px-4 py-3">
+                  <Link href={`/customers/${p.customer!.id}`} className="font-medium text-slate-900 hover:underline">
+                    {p.customer!.name}
+                  </Link>
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-slate-600">{p.customer!.phone ?? "-"}</td>
+                <td className="px-4 py-3 text-slate-600">{p.category?.name}</td>
+                <td className="px-4 py-3 text-slate-600">{p.insurance_company ?? "-"}</td>
+                <td className="px-4 py-3 text-slate-600">{p.coverage_end_date}</td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      p.daysLeft < 0
+                        ? "bg-rose-100 text-rose-700"
+                        : p.daysLeft <= 14
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {p.daysLeft < 0 ? `เกิน ${Math.abs(p.daysLeft)} วัน` : `${p.daysLeft} วัน`}
+                  </span>
+                </td>
+              </tr>
+            ))}
             {due.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-slate-400">

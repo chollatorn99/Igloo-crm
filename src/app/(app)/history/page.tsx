@@ -1,6 +1,17 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/fetchAll";
 import { ExportButton } from "@/app/(app)/payments/export-button";
+
+type HistoryPolicyRow = {
+  id: string;
+  closed_date: string;
+  coverage_end_date: string | null;
+  net_premium: number | null;
+  category_id: string;
+  category: { name: string } | null;
+  customer: { id: string; name: string; phone: string | null } | null;
+};
 
 export default async function HistoryPage({
   searchParams,
@@ -12,19 +23,20 @@ export default async function HistoryPage({
 
   const { data: categories } = await supabase.from("policy_categories").select("id, name").order("name");
 
-  let query = supabase
-    .from("policies")
-    .select(
-      "id, closed_date, coverage_end_date, net_premium, category_id, category:policy_categories(name), customer:customers(id, name, phone, owner_id)",
-    )
-    .eq("deal_status", "win")
-    .not("closed_date", "is", null)
-    .order("closed_date", { ascending: false });
-
-  if (category_id) query = query.eq("category_id", category_id);
-  if (year) query = query.gte("closed_date", `${year}-01-01`).lte("closed_date", `${year}-12-31`);
-
-  const { data: policies } = await query;
+  const policies = await fetchAll<HistoryPolicyRow>((from, to) => {
+    let query = supabase
+      .from("policies")
+      .select(
+        "id, closed_date, coverage_end_date, net_premium, category_id, category:policy_categories(name), customer:customers(id, name, phone)",
+      )
+      .eq("deal_status", "win")
+      .not("closed_date", "is", null)
+      .order("closed_date", { ascending: false })
+      .range(from, to);
+    if (category_id) query = query.eq("category_id", category_id);
+    if (year) query = query.gte("closed_date", `${year}-01-01`).lte("closed_date", `${year}-12-31`);
+    return query as unknown as PromiseLike<{ data: HistoryPolicyRow[] | null; error: { message: string } | null }>;
+  });
 
   const today = new Date();
   const byCustomer = new Map<
@@ -39,9 +51,10 @@ export default async function HistoryPage({
     }
   >();
 
-  for (const p of policies ?? []) {
-    const customer = p.customer as unknown as { id: string; name: string; phone: string | null };
-    const y = new Date(p.closed_date as string).getFullYear();
+  for (const p of policies) {
+    const customer = p.customer;
+    if (!customer) continue;
+    const y = new Date(p.closed_date).getFullYear();
     const isActive = p.coverage_end_date ? new Date(p.coverage_end_date) >= today : false;
 
     const entry = byCustomer.get(customer.id) ?? {
@@ -62,7 +75,7 @@ export default async function HistoryPage({
 
   const rows = [...byCustomer.values()].sort((a, b) => b.latestYear - a.latestYear);
 
-  const yearOptions = [...new Set((policies ?? []).map((p) => new Date(p.closed_date as string).getFullYear()))].sort(
+  const yearOptions = [...new Set(policies.map((p) => new Date(p.closed_date).getFullYear()))].sort(
     (a, b) => b - a,
   );
 
