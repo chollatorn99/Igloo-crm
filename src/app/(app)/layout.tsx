@@ -7,23 +7,21 @@ type NavItem = { label: string; href: string };
 
 const NAV_BY_ROLE: Record<string, NavItem[]> = {
   manager: [
-    { label: "หน้าหลัก", href: "/" },
+    { label: "หน้าหลัก (Dashboard)", href: "/" },
     { label: "ลูกค้าทั้งหมด", href: "/customers" },
     { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
     { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
     { label: "ประวัติลูกค้าเก่า", href: "/history" },
-    { label: "Performance", href: "/performance" },
     { label: "Settings", href: "/settings" },
   ],
   sales: [
-    { label: "หน้าหลัก", href: "/" },
+    { label: "หน้าหลัก (Dashboard)", href: "/" },
     { label: "ลูกค้าของฉัน", href: "/customers" },
     { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
     { label: "ประวัติลูกค้าเก่า", href: "/history" },
-    { label: "Performance", href: "/performance" },
   ],
   accounting: [
-    { label: "หน้าหลัก", href: "/" },
+    { label: "หน้าหลัก (Dashboard)", href: "/" },
     { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
   ],
 };

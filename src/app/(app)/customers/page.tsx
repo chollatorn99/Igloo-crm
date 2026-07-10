@@ -24,6 +24,10 @@ export default async function CustomersPage({
   const page = Math.max(1, Number(pageParam) || 1);
   const supabase = await createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: me } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
+  const canExport = me?.role !== "sales";
+
   // One server-side page (50 rows) + an exact total for the pager — no more
   // loading all ~2000 rows into the DOM on every visit.
   let query = supabase
@@ -64,7 +68,7 @@ export default async function CustomersPage({
               ค้นหา
             </button>
           </form>
-          <LazyExportButton q={q} />
+          {canExport && <LazyExportButton q={q} />}
           <Link
             href="/customers/new"
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"

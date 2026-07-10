@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/fetchAll";
+import { authorizeAndLogExport } from "@/app/(app)/export-actions";
 
 type CustomerExportRow = {
   name: string;
@@ -15,10 +16,13 @@ type CustomerExportRow = {
 
 // Export pulls the FULL filtered set (not just the visible page) so the
 // downloaded file matches "the current filter" per the requirement — the
-// paginated table only renders 50 at a time for speed.
-export async function exportCustomers(q?: string): Promise<Record<string, unknown>[]> {
+// paginated table only renders 50 at a time for speed. Gated + logged +
+// watermarked via authorizeAndLogExport (sales is refused).
+export async function exportCustomers(
+  q?: string,
+): Promise<{ error?: string; rows?: Record<string, unknown>[]; watermark?: string }> {
   const supabase = await createClient();
-  const rows = await fetchAll<CustomerExportRow>((from, to) => {
+  const dataRows = await fetchAll<CustomerExportRow>((from, to) => {
     let query = supabase
       .from("customers")
       .select("name, phone, customer_type, call_count, last_call_result, owner:profiles(full_name)")
@@ -31,7 +35,10 @@ export async function exportCustomers(q?: string): Promise<Record<string, unknow
     return query as unknown as PromiseLike<{ data: CustomerExportRow[] | null; error: { message: string } | null }>;
   });
 
-  return rows.map((c) => ({
+  const auth = await authorizeAndLogExport("customers", dataRows.length, q ? `ค้นหา: ${q}` : undefined);
+  if (auth.error) return { error: auth.error };
+
+  const rows = dataRows.map((c) => ({
     ชื่อ: c.name,
     เบอร์โทร: c.phone,
     ประเภท: c.customer_type === "organization" ? "องค์กร" : "บุคคล",
@@ -39,6 +46,7 @@ export async function exportCustomers(q?: string): Promise<Record<string, unknow
     จำนวนครั้งที่โทร: c.call_count,
     ผลล่าสุด: c.last_call_result,
   }));
+  return { rows, watermark: auth.watermark };
 }
 
 export async function checkDuplicatePhone(phone: string) {

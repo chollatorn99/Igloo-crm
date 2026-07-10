@@ -17,6 +17,10 @@ export default async function PaymentsQueuePage({
   const { status } = await searchParams;
   const supabase = await createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: me } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
+  const canExport = me?.role !== "sales";
+
   // Only deals actually in the payment workflow — imported historical wins
   // have payment_status null and would otherwise flood this queue. This
   // also keeps the result well under Supabase's 1000-row cap.
@@ -61,7 +65,14 @@ export default async function PaymentsQueuePage({
           <h1 className="text-lg font-semibold text-slate-900">คิวตรวจสอบการชำระเงิน</h1>
           <p className="text-xs text-slate-500">{policies?.length ?? 0} รายการ</p>
         </div>
-        <ExportButton rows={exportRows} filename="payment-queue" />
+        {canExport && (
+          <ExportButton
+            rows={exportRows}
+            filename="payment-queue"
+            exportType="payments"
+            filterNote={status || undefined}
+          />
+        )}
       </div>
 
       <div className="mb-4 flex gap-2">
