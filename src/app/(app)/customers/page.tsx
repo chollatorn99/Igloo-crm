@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { fetchAll } from "@/lib/fetchAll";
-import { ExportButton } from "@/app/(app)/payments/export-button";
+import { Pagination } from "@/components/Pagination";
+import { LazyExportButton } from "./lazy-export-button";
 
 type CustomerRow = {
   id: string;
@@ -13,41 +13,35 @@ type CustomerRow = {
   owner: { full_name: string } | null;
 };
 
+const PAGE_SIZE = 50;
+
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
   const supabase = await createClient();
 
-  let customers: CustomerRow[] = [];
-  let error: string | null = null;
-  try {
-    customers = await fetchAll<CustomerRow>((from, to) => {
-      let query = supabase
-        .from("customers")
-        .select("id, name, phone, customer_type, call_count, last_call_result, owner:profiles(full_name)")
-        .order("created_at", { ascending: false })
-        .range(from, to);
-      if (q?.trim()) {
-        const term = q.trim().replace(/[%,()]/g, "");
-        query = query.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
-      }
-      return query as unknown as PromiseLike<{ data: CustomerRow[] | null; error: { message: string } | null }>;
-    });
-  } catch (err) {
-    error = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
+  // One server-side page (50 rows) + an exact total for the pager — no more
+  // loading all ~2000 rows into the DOM on every visit.
+  let query = supabase
+    .from("customers")
+    .select("id, name, phone, customer_type, call_count, last_call_result, owner:profiles(full_name)", {
+      count: "exact",
+    })
+    .order("created_at", { ascending: false })
+    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+
+  if (q?.trim()) {
+    const term = q.trim().replace(/[%,()]/g, "");
+    query = query.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
   }
 
-  const exportRows = customers.map((c) => ({
-    ชื่อ: c.name,
-    เบอร์โทร: c.phone,
-    ประเภท: c.customer_type === "organization" ? "องค์กร" : "บุคคล",
-    เจ้าของ: c.owner?.full_name,
-    จำนวนครั้งที่โทร: c.call_count,
-    ผลล่าสุด: c.last_call_result,
-  }));
+  const { data, count, error } = await query;
+  const customers = (data ?? []) as unknown as CustomerRow[];
+  const total = count ?? 0;
 
   return (
     <div className="p-8">
@@ -55,7 +49,7 @@ export default async function CustomersPage({
         <div>
           <h1 className="text-lg font-semibold text-slate-900">ลูกค้า</h1>
           <p className="text-xs text-slate-500">
-            {customers.length} รายการ{q ? ` (ค้นหา: "${q}")` : ""} — เห็นตามสิทธิ์ของบัญชีคุณ
+            {total.toLocaleString()} รายการ{q ? ` (ค้นหา: "${q}")` : ""} — เห็นตามสิทธิ์ของบัญชีคุณ
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -70,7 +64,7 @@ export default async function CustomersPage({
               ค้นหา
             </button>
           </form>
-          <ExportButton rows={exportRows} filename="customers" />
+          <LazyExportButton q={q} />
           <Link
             href="/customers/new"
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
@@ -80,7 +74,7 @@ export default async function CustomersPage({
         </div>
       </div>
 
-      {error && <p className="mb-4 text-sm text-red-600">โหลดข้อมูลไม่สำเร็จ: {error}</p>}
+      {error && <p className="mb-4 text-sm text-red-600">โหลดข้อมูลไม่สำเร็จ: {error.message}</p>}
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-sm">
@@ -121,6 +115,8 @@ export default async function CustomersPage({
           </tbody>
         </table>
       </div>
+
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ q }} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/fetchAll";
+import { Pagination } from "@/components/Pagination";
 import { ExportButton } from "@/app/(app)/payments/export-button";
 
 type HistoryPolicyRow = {
@@ -13,12 +14,15 @@ type HistoryPolicyRow = {
   customer: { id: string; name: string; phone: string | null } | null;
 };
 
+const PAGE_SIZE = 50;
+
 export default async function HistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; category_id?: string }>;
+  searchParams: Promise<{ year?: string; category_id?: string; page?: string }>;
 }) {
-  const { year, category_id } = await searchParams;
+  const { year, category_id, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
   const supabase = await createClient();
 
   const { data: categories } = await supabase.from("policy_categories").select("id, name").order("name");
@@ -73,13 +77,17 @@ export default async function HistoryPage({
     byCustomer.set(customer.id, entry);
   }
 
-  const rows = [...byCustomer.values()].sort((a, b) => b.latestYear - a.latestYear);
+  const allRows = [...byCustomer.values()].sort((a, b) => b.latestYear - a.latestYear);
+  // Aggregation needs every policy, but only ship the current page's rows to
+  // the browser — rendering ~1,900 rows of HTML was the slow part.
+  const total = allRows.length;
+  const rows = allRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const yearOptions = [...new Set(policies.map((p) => new Date(p.closed_date).getFullYear()))].sort(
     (a, b) => b - a,
   );
 
-  const exportRows = rows.map((r) => ({
+  const exportRows = allRows.map((r) => ({
     ลูกค้า: r.customer.name,
     เบอร์โทร: r.customer.phone,
     ปีที่ซื้อล่าสุด: r.latestYear,
@@ -94,7 +102,7 @@ export default async function HistoryPage({
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-slate-900">ประวัติลูกค้าเก่า / Win-back</h1>
-          <p className="text-xs text-slate-500">{rows.length} ลูกค้า</p>
+          <p className="text-xs text-slate-500">{total.toLocaleString()} ลูกค้า</p>
         </div>
         <ExportButton rows={exportRows} filename="customer-history" />
       </div>
@@ -170,6 +178,8 @@ export default async function HistoryPage({
           </tbody>
         </table>
       </div>
+
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ year, category_id }} />
     </div>
   );
 }
