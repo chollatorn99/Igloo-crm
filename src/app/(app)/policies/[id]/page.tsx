@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { setDealStatus, reportPaymentTransfer, verifyPayment } from "../actions";
+import { setDealStatus, reportPaymentTransfer, verifyPayment, setRenewalOutcome } from "../actions";
 import { PolicyEditForm } from "./edit-form";
 import { ActionForm } from "@/components/ActionForm";
 
@@ -9,6 +9,12 @@ const DEAL_STATUS_LABEL: Record<string, string> = {
   pending: "กำลังติดตาม",
   win: "Win",
   lost: "Lost",
+};
+
+const RENEWAL_OUTCOME_LABEL: Record<string, string> = {
+  pending: "รอติดตาม",
+  renewed: "ต่อแล้ว",
+  not_renewed: "ไม่ต่อ",
 };
 
 const PAYMENT_STATUS_LABEL: Record<string, string> = {
@@ -57,6 +63,9 @@ export default async function PolicyDetailPage({
   const reportTransfer = reportPaymentTransfer.bind(null, id);
   const markVerified = verifyPayment.bind(null, id, "verified", undefined);
   const markRejected = verifyPayment.bind(null, id, "rejected", "สลิปไม่ผ่าน — ตรวจสอบอีกครั้ง");
+  const markRenewed = setRenewalOutcome.bind(null, id, "renewed");
+  const markNotRenewed = setRenewalOutcome.bind(null, id, "not_renewed");
+  const markRenewalPending = setRenewalOutcome.bind(null, id, "pending");
 
   return (
     <div className="mx-auto max-w-2xl p-8">
@@ -83,6 +92,49 @@ export default async function PolicyDetailPage({
           {DEAL_STATUS_LABEL[policy.deal_status]}
         </span>
       </div>
+
+      {/* Renewal follow-up outcome — only meaningful for a won policy, kept
+          separate from deal_status so revenue/history are never altered. */}
+      {policy.deal_status === "win" && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <p className="text-sm font-semibold text-slate-700">ผลการติดตามต่ออายุ</p>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                policy.renewal_outcome === "renewed"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : policy.renewal_outcome === "not_renewed"
+                    ? "bg-rose-100 text-rose-700"
+                    : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {RENEWAL_OUTCOME_LABEL[policy.renewal_outcome] ?? "รอติดตาม"}
+            </span>
+          </div>
+          {isOwnerOrManager && (
+            <div className="flex flex-wrap items-center gap-2">
+              <ActionForm action={markRenewed}>
+                <button className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
+                  ต่อแล้ว
+                </button>
+              </ActionForm>
+              <ActionForm action={markNotRenewed}>
+                <button className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
+                  ไม่ต่อ
+                </button>
+              </ActionForm>
+              <ActionForm action={markRenewalPending}>
+                <button className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
+                  ล้าง (รอติดตาม)
+                </button>
+              </ActionForm>
+              <p className="text-xs text-slate-400">
+                &quot;ไม่ต่อ&quot; จะเอาออกจากรายการแจ้งเตือนต่ออายุ โดยไม่กระทบยอดขายเดิม
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {policy.deal_status === "pending" && isOwnerOrManager && (
         <div className="mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-4">

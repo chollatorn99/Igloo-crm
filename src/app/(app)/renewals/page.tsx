@@ -28,6 +28,9 @@ export default async function RenewalsPage() {
         "id, coverage_end_date, insurance_company, category:policy_categories(name, renewal_reminder_days), customer:customers(id, name, phone)",
       )
       .eq("deal_status", "win")
+      // Only still-open follow-ups: once sales marks the outcome (ต่อแล้ว /
+      // ไม่ต่อ) the policy drops off this list.
+      .eq("renewal_outcome", "pending")
       .gte("coverage_end_date", floor)
       .order("coverage_end_date", { ascending: true })
       .range(from, to) as unknown as PromiseLike<{ data: PolicyRow[] | null; error: { message: string } | null }>,
@@ -79,7 +82,9 @@ export default async function RenewalsPage() {
             {due.map((p) => (
               <tr key={p.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
-                  <Link href={`/customers/${p.customer!.id}`} className="font-medium text-slate-900 hover:underline">
+                  {/* Link to this exact policy — that's the one the reminder
+                      is about and where ต่อแล้ว/ไม่ต่อ gets recorded. */}
+                  <Link href={`/policies/${p.id}`} className="font-medium text-slate-900 hover:underline">
                     {p.customer!.name}
                   </Link>
                 </td>

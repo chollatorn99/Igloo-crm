@@ -142,3 +142,22 @@ export async function verifyPayment(
   revalidatePath(`/policies/${policyId}`);
   return {};
 }
+
+// Records the renewal follow-up outcome (Option B) — separate from
+// deal_status so it never touches the historical Win/revenue. Goes through
+// the set_renewal_outcome DB function, which enforces owner/manager scope.
+export async function setRenewalOutcome(
+  policyId: string,
+  outcome: "pending" | "renewed" | "not_renewed",
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_renewal_outcome", {
+    p_policy_id: policyId,
+    p_outcome: outcome,
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath(`/policies/${policyId}`);
+  revalidatePath("/renewals");
+  return {};
+}
