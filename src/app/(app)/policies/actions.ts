@@ -92,10 +92,13 @@ export async function setDealStatus(policyId: string, status: "win" | "lost"): P
     }
   }
 
-  const { error } = await supabase
-    .from("policies")
-    .update({ deal_status: status })
-    .eq("id", policyId);
+  // Stamp the conclusion date on Lost too (the win path gets it from the
+  // DB trigger) so the dashboard's period filter/win-rate can place lost
+  // deals in the right month.
+  const update: { deal_status: string; closed_date?: string } =
+    status === "lost" ? { deal_status: status, closed_date: new Date().toISOString().slice(0, 10) } : { deal_status: status };
+
+  const { error } = await supabase.from("policies").update(update).eq("id", policyId);
 
   if (error) return { error: error.message };
   revalidatePath(`/policies/${policyId}`);

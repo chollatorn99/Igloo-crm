@@ -1,10 +1,10 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/fetchAll";
 
 type NoteRow = { author_id: string; created_at: string };
 type DashPolicyRow = {
   deal_status: string;
-  renewal_outcome: string;
   net_premium: number | null;
   company_commission_amount: number | null;
   closed_date: string | null;
@@ -13,42 +13,61 @@ type DashPolicyRow = {
 };
 
 type Stat = {
-  calls_today: number;
-  calls_7d: number;
-  calls_30d: number;
-  premium_all: number;
-  commission_all: number;
-  premium_30d: number;
-  commission_30d: number;
+  calls: number;
+  premium: number;
+  commission: number;
   win: number;
   lost: number;
-  not_renewed: number;
 };
 
-// Distinct, reasonably accessible categorical palette for the policy-type
-// breakdown. Assigned by sorted category name so a type keeps its colour.
 const PALETTE = [
   "#2563eb", "#16a34a", "#db2777", "#d97706", "#7c3aed",
   "#0891b2", "#dc2626", "#65a30d", "#c026d3", "#0d9488",
   "#ea580c", "#4f46e5", "#059669", "#e11d48", "#9333ea",
 ];
 
-function startOfDaysAgo(days: number) {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - days);
-  return d;
+const blankStat = (): Stat => ({ calls: 0, premium: 0, commission: 0, win: 0, lost: 0 });
+const baht = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 0 });
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+const TH_MONTHS = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+];
+
+// Resolve the active reporting window from the query string. Default = the
+// current calendar month, so "ยอดเดือนนี้" is what shows on first load.
+function resolveRange(sp: { range?: string; from?: string; to?: string }) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const range = sp.range ?? "month";
+
+  if (range === "all") return { from: null, to: null, label: "ทั้งหมด" };
+  if (range === "year") return { from: `${y}-01-01`, to: `${y}-12-31`, label: `ปี ${y}` };
+  if (range === "lastmonth") {
+    const from = new Date(y, m - 1, 1);
+    const to = new Date(y, m, 0);
+    return { from: iso(from), to: iso(to), label: `${TH_MONTHS[from.getMonth()]} ${from.getFullYear()}` };
+  }
+  if (range === "custom" && sp.from && sp.to) {
+    return { from: sp.from, to: sp.to, label: `${sp.from} ถึง ${sp.to}` };
+  }
+  // month (default)
+  const from = new Date(y, m, 1);
+  const to = new Date(y, m + 1, 0);
+  return { from: iso(from), to: iso(to), label: `${TH_MONTHS[m]} ${y}` };
 }
 
-const blankStat = (): Stat => ({
-  calls_today: 0, calls_7d: 0, calls_30d: 0,
-  premium_all: 0, commission_all: 0, premium_30d: 0, commission_30d: 0,
-  win: 0, lost: 0, not_renewed: 0,
-});
+export default async function DashboardHome({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+}) {
+  const sp = await searchParams;
+  const { from, to, label } = resolveRange(sp);
+  const activeRange = sp.range ?? "month";
 
-const baht = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 0 });
-
-export default async function DashboardHome() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user!.id).single();
@@ -56,27 +75,27 @@ export default async function DashboardHome() {
 
   const [{ data: profiles }, notes, policies] = await Promise.all([
     supabase.from("profiles").select("id, full_name").in("role", ["sales", "manager"]).order("full_name"),
-    fetchAll<NoteRow>((from, to) =>
-      supabase
-        .from("follow_up_notes")
-        .select("author_id, created_at")
-        .order("created_at")
-        .range(from, to) as unknown as PromiseLike<{ data: NoteRow[] | null; error: { message: string } | null }>,
-    ),
-    fetchAll<DashPolicyRow>((from, to) =>
-      supabase
+    fetchAll<NoteRow>((f, t) => {
+      let q = supabase.from("follow_up_notes").select("author_id, created_at").order("created_at").range(f, t);
+      if (from) q = q.gte("created_at", from);
+      if (to) q = q.lte("created_at", `${to}T23:59:59`);
+      return q as unknown as PromiseLike<{ data: NoteRow[] | null; error: { message: string } | null }>;
+    }),
+    fetchAll<DashPolicyRow>((f, t) => {
+      let q = supabase
         .from("policies")
         .select(
-          "deal_status, renewal_outcome, net_premium, company_commission_amount, closed_date, category:policy_categories(name), customer:customers(owner_id)",
+          "deal_status, net_premium, company_commission_amount, closed_date, category:policy_categories(name), customer:customers(owner_id)",
         )
-        .order("created_at")
-        .range(from, to) as unknown as PromiseLike<{ data: DashPolicyRow[] | null; error: { message: string } | null }>,
-    ),
+        .in("deal_status", ["win", "lost"])
+        .order("closed_date")
+        .range(f, t);
+      // Filter by the sale/conclusion date (closed_date) for the window.
+      if (from) q = q.gte("closed_date", from);
+      if (to) q = q.lte("closed_date", to);
+      return q as unknown as PromiseLike<{ data: DashPolicyRow[] | null; error: { message: string } | null }>;
+    }),
   ]);
-
-  const today = startOfDaysAgo(0);
-  const d7 = startOfDaysAgo(7);
-  const d30 = startOfDaysAgo(30);
 
   const byUser = new Map<string, Stat>();
   const get = (id: string) => {
@@ -84,35 +103,19 @@ export default async function DashboardHome() {
     return byUser.get(id)!;
   };
 
-  for (const n of notes) {
-    const created = new Date(n.created_at);
-    const s = get(n.author_id);
-    if (created >= today) s.calls_today++;
-    if (created >= d7) s.calls_7d++;
-    if (created >= d30) s.calls_30d++;
-  }
+  for (const n of notes) get(n.author_id).calls++;
 
-  // Category totals (won policies only). Split per-owner for manager's
-  // per-person view is out of scope here — this is the whole visible scope.
   const byCategory = new Map<string, { count: number; premium: number; commission: number }>();
-
   for (const p of policies) {
     const ownerId = p.customer?.owner_id;
     if (!ownerId) continue;
     const s = get(ownerId);
-
     if (p.deal_status === "win") {
       s.win++;
-      if (p.renewal_outcome === "not_renewed") s.not_renewed++;
       const premium = Number(p.net_premium ?? 0);
       const commission = Number(p.company_commission_amount ?? 0);
-      s.premium_all += premium;
-      s.commission_all += commission;
-      const closed = p.closed_date ? new Date(p.closed_date) : null;
-      if (closed && closed >= d30) {
-        s.premium_30d += premium;
-        s.commission_30d += commission;
-      }
+      s.premium += premium;
+      s.commission += commission;
       const catName = p.category?.name ?? "ไม่ระบุ";
       const c = byCategory.get(catName) ?? { count: 0, premium: 0, commission: 0 };
       c.count++;
@@ -137,10 +140,15 @@ export default async function DashboardHome() {
     .map(([name, v]) => ({ name, ...v }))
     .sort((a, b) => b.premium - a.premium);
   const maxCatPremium = Math.max(1, ...categories.map((c) => c.premium));
-  const colorFor = (name: string) => {
-    const idx = [...byCategory.keys()].sort().indexOf(name);
-    return PALETTE[idx % PALETTE.length];
-  };
+  const sortedNames = [...byCategory.keys()].sort();
+  const colorFor = (name: string) => PALETTE[sortedNames.indexOf(name) % PALETTE.length];
+
+  const presets = [
+    { key: "month", label: "เดือนนี้" },
+    { key: "lastmonth", label: "เดือนที่แล้ว" },
+    { key: "year", label: "ปีนี้" },
+    { key: "all", label: "ทั้งหมด" },
+  ];
 
   const Card = ({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) => (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
@@ -152,45 +160,54 @@ export default async function DashboardHome() {
 
   return (
     <div className="p-8">
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-lg font-semibold text-slate-900">Performance Dashboard</h1>
         <p className="text-xs text-slate-500">
-          สวัสดี {profile?.full_name} · {isManager ? "ภาพรวมทั้งทีม" : "ผลงานของคุณ"}
+          สวัสดี {profile?.full_name} · {isManager ? "ภาพรวมทั้งทีม" : "ผลงานของคุณ"} · ช่วง:{" "}
+          <span className="font-medium text-slate-700">{label}</span>
         </p>
       </div>
 
+      {/* Period selector */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        {presets.map((p) => (
+          <Link
+            key={p.key}
+            href={`/?range=${p.key}`}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+              activeRange === p.key
+                ? "bg-slate-900 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            {p.label}
+          </Link>
+        ))}
+        <form className="flex items-center gap-1" action="/">
+          <input type="hidden" name="range" value="custom" />
+          <input type="date" name="from" defaultValue={sp.from ?? from ?? ""} className="rounded-md border border-slate-300 px-2 py-1 text-xs" />
+          <span className="text-xs text-slate-400">ถึง</span>
+          <input type="date" name="to" defaultValue={sp.to ?? to ?? ""} className="rounded-md border border-slate-300 px-2 py-1 text-xs" />
+          <button className="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100">
+            ดูช่วงนี้
+          </button>
+        </form>
+      </div>
+
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card
-          label="ค่าคอมบริษัทรวม (รายได้ Igloo)"
-          value={baht(scope.commission_all)}
-          sub={`30 วันล่าสุด: ${baht(scope.commission_30d)}`}
-          accent="text-emerald-700"
-        />
-        <Card
-          label="เบี้ยประกันสุทธิรวม"
-          value={baht(scope.premium_all)}
-          sub={`30 วันล่าสุด: ${baht(scope.premium_30d)}`}
-        />
-        <Card label="โทรติดตาม (30 วัน)" value={baht(scope.calls_30d)} sub={`วันนี้: ${scope.calls_today}`} />
+        <Card label="ค่าคอมบริษัท (รายได้ Igloo)" value={baht(scope.commission)} accent="text-emerald-700" />
+        <Card label="เบี้ยประกันสุทธิ" value={baht(scope.premium)} />
+        <Card label="โทรติดตาม" value={baht(scope.calls)} />
         <Card label="Win Rate" value={`${winRate(scope)}%`} sub={`Win ${scope.win} / Lost ${scope.lost}`} />
       </div>
 
-      <div className="mb-8 grid grid-cols-3 gap-3">
-        <Card label="ดีลปิดได้ (Win)" value={baht(scope.win)} accent="text-emerald-700" />
-        <Card label="ดีลไม่ปิด (Lost)" value={baht(scope.lost)} accent="text-rose-600" />
-        <Card label="ไม่ต่ออายุ" value={baht(scope.not_renewed)} accent="text-amber-600" />
-      </div>
-
-      {/* Policy type breakdown with colour */}
       <h2 className="mb-3 text-sm font-semibold text-slate-600">ประเภทกรมธรรม์ที่ขายได้ (ตามเบี้ยประกัน)</h2>
       <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5">
-        {categories.length === 0 && <p className="text-sm text-slate-400">ยังไม่มีข้อมูล</p>}
+        {categories.length === 0 && <p className="text-sm text-slate-400">ไม่มียอดขายในช่วงที่เลือก</p>}
         <div className="space-y-2.5">
           {categories.map((c) => (
             <div key={c.name} className="flex items-center gap-3 text-sm">
-              <div className="w-28 shrink-0 truncate text-slate-700" title={c.name}>
-                {c.name}
-              </div>
+              <div className="w-28 shrink-0 truncate text-slate-700" title={c.name}>{c.name}</div>
               <div className="flex-1">
                 <div className="h-5 w-full overflow-hidden rounded bg-slate-100">
                   <div
@@ -200,9 +217,7 @@ export default async function DashboardHome() {
                 </div>
               </div>
               <div className="w-32 shrink-0 text-right font-mono text-xs text-slate-600">{baht(c.premium)} ฿</div>
-              <div className="w-24 shrink-0 text-right font-mono text-xs text-slate-400">
-                คอม {baht(c.commission)}
-              </div>
+              <div className="w-24 shrink-0 text-right font-mono text-xs text-slate-400">คอม {baht(c.commission)}</div>
               <div className="w-14 shrink-0 text-right text-xs text-slate-400">{c.count} ราย</div>
             </div>
           ))}
@@ -211,18 +226,17 @@ export default async function DashboardHome() {
 
       {isManager && (
         <>
-          <h2 className="mb-3 text-sm font-semibold text-slate-600">แยกรายพนักงาน</h2>
+          <h2 className="mb-3 text-sm font-semibold text-slate-600">แยกรายพนักงาน ({label})</h2>
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3">พนักงาน</th>
-                  <th className="px-4 py-3">โทร 30 วัน</th>
-                  <th className="px-4 py-3">เบี้ยสุทธิรวม</th>
+                  <th className="px-4 py-3">โทรติดตาม</th>
+                  <th className="px-4 py-3">เบี้ยสุทธิ</th>
                   <th className="px-4 py-3">ค่าคอมบริษัท</th>
                   <th className="px-4 py-3">Win</th>
                   <th className="px-4 py-3">Lost</th>
-                  <th className="px-4 py-3">ไม่ต่อ</th>
                   <th className="px-4 py-3">Win Rate</th>
                 </tr>
               </thead>
@@ -232,12 +246,11 @@ export default async function DashboardHome() {
                   return (
                     <tr key={p.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-medium text-slate-900">{p.full_name}</td>
-                      <td className="px-4 py-3">{s.calls_30d}</td>
-                      <td className="px-4 py-3 font-mono">{baht(s.premium_all)}</td>
-                      <td className="px-4 py-3 font-mono text-emerald-700">{baht(s.commission_all)}</td>
+                      <td className="px-4 py-3">{s.calls}</td>
+                      <td className="px-4 py-3 font-mono">{baht(s.premium)}</td>
+                      <td className="px-4 py-3 font-mono text-emerald-700">{baht(s.commission)}</td>
                       <td className="px-4 py-3">{s.win}</td>
                       <td className="px-4 py-3">{s.lost}</td>
-                      <td className="px-4 py-3">{s.not_renewed}</td>
                       <td className="px-4 py-3">{winRate(s)}%</td>
                     </tr>
                   );
@@ -245,9 +258,7 @@ export default async function DashboardHome() {
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-xs text-slate-400">
-            * ค่าคอมมิชชั่นของ sales จะเพิ่มให้เมื่อได้เงื่อนไขการคำนวณ
-          </p>
+          <p className="mt-2 text-xs text-slate-400">* ค่าคอมมิชชั่นของ sales จะเพิ่มให้เมื่อได้เงื่อนไขการคำนวณ</p>
         </>
       )}
     </div>
