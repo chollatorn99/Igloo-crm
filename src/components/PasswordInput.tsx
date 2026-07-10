@@ -6,10 +6,12 @@ export function PasswordInput({
   value,
   onChange,
   required,
+  name,
 }: {
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  name?: string;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -17,6 +19,7 @@ export function PasswordInput({
     <div className="relative">
       <input
         type={visible ? "text" : "password"}
+        name={name}
         required={required}
         value={value}
         onChange={(e) => onChange(e.target.value)}
