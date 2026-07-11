@@ -108,12 +108,20 @@ export async function setDealStatus(policyId: string, status: "win" | "lost"): P
 export async function reportPaymentTransfer(policyId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
 
+  const method = strOrNull(formData.get("payment_method"));
+  // Installments only apply to credit-card / pay-with-Igloo plans.
+  const takesInstallments = method === "credit_card" || method === "installment_igloo";
+
   const { error } = await supabase
     .from("policies")
     .update({
       payment_status: "awaiting_verification",
       payment_reference: strOrNull(formData.get("payment_reference")),
       payment_date: strOrNull(formData.get("payment_date")),
+      payment_method: method,
+      installment_count: takesInstallments ? numOrNull(formData.get("installment_count")) : null,
+      installment_amount:
+        method === "installment_igloo" ? numOrNull(formData.get("installment_amount")) : null,
     })
     .eq("id", policyId);
 

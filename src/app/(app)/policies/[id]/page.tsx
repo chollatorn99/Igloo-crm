@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { setDealStatus, reportPaymentTransfer, verifyPayment, setRenewalOutcome } from "../actions";
+import { setDealStatus, verifyPayment, setRenewalOutcome } from "../actions";
 import { PolicyEditForm } from "./edit-form";
+import { PaymentReportForm } from "./payment-report-form";
 import { ActionForm } from "@/components/ActionForm";
 
 const DEAL_STATUS_LABEL: Record<string, string> = {
@@ -15,6 +16,13 @@ const RENEWAL_OUTCOME_LABEL: Record<string, string> = {
   pending: "รอติดตาม",
   renewed: "ต่อแล้ว",
   not_renewed: "ไม่ต่อ",
+};
+
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  transfer_igloo: "โอนเข้าอิกลู",
+  transfer_insurer: "โอนให้บริษัทประกัน",
+  credit_card: "บัตรเครดิต",
+  installment_igloo: "ผ่อนกับอิกลู",
 };
 
 const PAYMENT_STATUS_LABEL: Record<string, string> = {
@@ -60,7 +68,6 @@ export default async function PolicyDetailPage({
 
   const markWin = setDealStatus.bind(null, id, "win");
   const markLost = setDealStatus.bind(null, id, "lost");
-  const reportTransfer = reportPaymentTransfer.bind(null, id);
   const markVerified = verifyPayment.bind(null, id, "verified", undefined);
   const markRejected = verifyPayment.bind(null, id, "rejected", "สลิปไม่ผ่าน — ตรวจสอบอีกครั้ง");
   const markRenewed = setRenewalOutcome.bind(null, id, "renewed");
@@ -163,20 +170,16 @@ export default async function PolicyDetailPage({
             {policy.payment_date && ` · โอนวันที่: ${policy.payment_date}`}
           </p>
 
+          {policy.payment_method && (
+            <p className="mb-3 text-sm text-slate-600">
+              วิธีรับชำระ: <strong>{PAYMENT_METHOD_LABEL[policy.payment_method] ?? "-"}</strong>
+              {policy.installment_count ? ` · ${policy.installment_count} งวด` : ""}
+              {policy.installment_amount ? ` · งวดละ ${Number(policy.installment_amount).toLocaleString()} บาท` : ""}
+            </p>
+          )}
+
           {policy.payment_status === "awaiting_payment" && isOwnerOrManager && (
-            <ActionForm action={reportTransfer} className="flex flex-wrap items-end gap-2">
-              <div>
-                <label className="mb-1 block text-xs text-slate-500">เลขอ้างอิงการโอน</label>
-                <input name="payment_reference" required className="rounded-md border border-slate-300 px-3 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-slate-500">วันที่โอน</label>
-                <input type="date" name="payment_date" required className="rounded-md border border-slate-300 px-3 py-1.5 text-sm" />
-              </div>
-              <button className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-                แจ้งโอนแล้ว
-              </button>
-            </ActionForm>
+            <PaymentReportForm policyId={id} />
           )}
 
           {policy.payment_status === "awaiting_verification" && (role === "accounting" || role === "manager") && (
