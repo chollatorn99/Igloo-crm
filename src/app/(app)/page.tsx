@@ -195,7 +195,10 @@ export default async function DashboardHome({
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card label="ค่าคอมบริษัท (รายได้ Igloo)" value={baht(scope.commission)} accent="text-emerald-700" />
+        {/* Company commission = Igloo's revenue — manager-only. */}
+        {isManager && (
+          <Card label="ค่าคอมบริษัท (รายได้ Igloo)" value={baht(scope.commission)} accent="text-emerald-700" />
+        )}
         <Card label="เบี้ยประกันสุทธิ" value={baht(scope.premium)} />
         <Card label="โทรติดตาม" value={baht(scope.calls)} />
         <Card label="Win Rate" value={`${winRate(scope)}%`} sub={`Win ${scope.win} / Lost ${scope.lost}`} />
@@ -217,7 +220,9 @@ export default async function DashboardHome({
                 </div>
               </div>
               <div className="w-32 shrink-0 text-right font-mono text-xs text-slate-600">{baht(c.premium)} ฿</div>
-              <div className="w-24 shrink-0 text-right font-mono text-xs text-slate-400">คอม {baht(c.commission)}</div>
+              {isManager && (
+                <div className="w-24 shrink-0 text-right font-mono text-xs text-slate-400">คอม {baht(c.commission)}</div>
+              )}
               <div className="w-14 shrink-0 text-right text-xs text-slate-400">{c.count} ราย</div>
             </div>
           ))}

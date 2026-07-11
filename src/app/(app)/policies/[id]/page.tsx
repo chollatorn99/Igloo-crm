@@ -201,20 +201,23 @@ export default async function PolicyDetailPage({
             </p>
           )}
 
-          <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-100 pt-3 text-sm">
-            <div>
-              <p className="text-xs text-slate-400">ค่าคอมบริษัท</p>
-              <p className="font-mono">{Number(policy.company_commission_amount ?? 0).toLocaleString()}</p>
+          {/* Commission figures = company revenue — manager-only. */}
+          {role === "manager" && (
+            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-100 pt-3 text-sm">
+              <div>
+                <p className="text-xs text-slate-400">ค่าคอมบริษัท</p>
+                <p className="font-mono">{Number(policy.company_commission_amount ?? 0).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">ค่าคอม Agent</p>
+                <p className="font-mono">{Number(policy.agent_commission_amount ?? 0).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500">ค่าคอมสุทธิ Igloo</p>
+                <p className="font-mono font-semibold">{Number(policy.net_commission_to_igloo ?? 0).toLocaleString()}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-slate-400">ค่าคอม Agent</p>
-              <p className="font-mono">{Number(policy.agent_commission_amount ?? 0).toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-500">ค่าคอมสุทธิ Igloo</p>
-              <p className="font-mono font-semibold">{Number(policy.net_commission_to_igloo ?? 0).toLocaleString()}</p>
-            </div>
-          </div>
+          )}
         </div>
       )}
 

@@ -19,6 +19,7 @@ export default async function PaymentsQueuePage({
 
   const { data: { user } } = await supabase.auth.getUser();
   const { data: me } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
+  const isManager = me?.role === "manager";
   const canExport = me?.role !== "sales";
 
   // Only deals actually in the payment workflow — imported historical wins
@@ -45,13 +46,19 @@ export default async function PaymentsQueuePage({
     { key: "rejected", label: "สลิปไม่ผ่าน" },
   ];
 
+  // Commission columns are company revenue — only managers get them, in the
+  // table and in the export file.
   const exportRows = (policies ?? []).map((p) => ({
     ลูกค้า: (p.customer as unknown as { name: string } | null)?.name,
     ประเภท: (p.category as unknown as { name: string } | null)?.name,
     เบี้ยประกัน: p.net_premium,
-    ค่าคอมบริษัท: p.company_commission_amount,
-    ค่าคอมAgent: p.agent_commission_amount,
-    ค่าคอมสุทธิ: p.net_commission_to_igloo,
+    ...(isManager
+      ? {
+          ค่าคอมบริษัท: p.company_commission_amount,
+          ค่าคอมAgent: p.agent_commission_amount,
+          ค่าคอมสุทธิ: p.net_commission_to_igloo,
+        }
+      : {}),
     สถานะการชำระ: PAYMENT_STATUS_LABEL[p.payment_status as string] ?? "",
     เลขอ้างอิง: p.payment_reference,
     วันที่โอน: p.payment_date,
@@ -96,7 +103,7 @@ export default async function PaymentsQueuePage({
               <th className="px-4 py-3">ลูกค้า</th>
               <th className="px-4 py-3">ประเภท</th>
               <th className="px-4 py-3">เบี้ยประกัน</th>
-              <th className="px-4 py-3">ค่าคอมสุทธิ</th>
+              {isManager && <th className="px-4 py-3">ค่าคอมสุทธิ</th>}
               <th className="px-4 py-3">สถานะ</th>
               <th className="px-4 py-3">เลขอ้างอิง</th>
             </tr>
@@ -113,9 +120,11 @@ export default async function PaymentsQueuePage({
                 <td className="px-4 py-3 font-mono text-slate-600">
                   {Number(p.net_premium ?? 0).toLocaleString()}
                 </td>
-                <td className="px-4 py-3 font-mono text-slate-600">
-                  {Number(p.net_commission_to_igloo ?? 0).toLocaleString()}
-                </td>
+                {isManager && (
+                  <td className="px-4 py-3 font-mono text-slate-600">
+                    {Number(p.net_commission_to_igloo ?? 0).toLocaleString()}
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -134,7 +143,7 @@ export default async function PaymentsQueuePage({
             ))}
             {policies?.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={isManager ? 6 : 5} className="px-4 py-10 text-center text-slate-400">
                   ไม่มีรายการ
                 </td>
               </tr>
