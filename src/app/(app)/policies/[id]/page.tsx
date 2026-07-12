@@ -233,12 +233,7 @@ export default async function PolicyDetailPage({
       )}
 
       {isOwnerOrManager && (
-        <PolicyEditForm
-          policy={policy}
-          categories={categories ?? []}
-          agents={agents ?? []}
-          isManager={role === "manager"}
-        />
+        <PolicyEditForm policy={policy} categories={categories ?? []} agents={agents ?? []} />
       )}
     </div>
   );

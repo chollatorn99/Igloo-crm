@@ -7,12 +7,10 @@ export function NewPolicyForm({
   customerId,
   categories,
   agents,
-  isManager,
 }: {
   customerId: string;
   categories: { id: string; name: string }[];
   agents: { id: string; name: string }[];
-  isManager: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -82,12 +80,10 @@ export function NewPolicyForm({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {isManager && (
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">% ค่าคอมบริษัท</label>
-            <input type="number" step="0.01" name="company_commission_rate" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-          </div>
-        )}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">% ค่าคอมจากบริษัทประกัน</label>
+          <input type="number" step="0.01" name="company_commission_rate" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">ส่วนลดลูกค้า (บาท)</label>
           <input type="number" step="0.01" name="customer_discount_amount" defaultValue={0} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
