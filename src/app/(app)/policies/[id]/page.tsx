@@ -204,28 +204,41 @@ export default async function PolicyDetailPage({
             </p>
           )}
 
-          {/* Commission figures = company revenue — manager-only. */}
-          {role === "manager" && (
+          {isOwnerOrManager && (
             <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-100 pt-3 text-sm">
-              <div>
-                <p className="text-xs text-slate-400">ค่าคอมบริษัท</p>
-                <p className="font-mono">{Number(policy.company_commission_amount ?? 0).toLocaleString()}</p>
-              </div>
+              {/* Agent commission is what the freelancer is owed — the
+                  owning salesperson needs to see it. Company commission and
+                  net-to-Igloo are company revenue, so manager-only. */}
               <div>
                 <p className="text-xs text-slate-400">ค่าคอม Agent</p>
                 <p className="font-mono">{Number(policy.agent_commission_amount ?? 0).toLocaleString()}</p>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-500">ค่าคอมสุทธิ Igloo</p>
-                <p className="font-mono font-semibold">{Number(policy.net_commission_to_igloo ?? 0).toLocaleString()}</p>
-              </div>
+              {role === "manager" && (
+                <>
+                  <div>
+                    <p className="text-xs text-slate-400">ค่าคอมบริษัท</p>
+                    <p className="font-mono">{Number(policy.company_commission_amount ?? 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">ค่าคอมบริษัทหลังหัก Agent</p>
+                    <p className="font-mono font-semibold">
+                      {Number(policy.net_commission_to_igloo ?? 0).toLocaleString()}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
       )}
 
       {isOwnerOrManager && (
-        <PolicyEditForm policy={policy} categories={categories ?? []} agents={agents ?? []} />
+        <PolicyEditForm
+          policy={policy}
+          categories={categories ?? []}
+          agents={agents ?? []}
+          isManager={role === "manager"}
+        />
       )}
     </div>
   );

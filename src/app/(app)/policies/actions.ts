@@ -51,26 +51,32 @@ export async function createPolicy(customerId: string, formData: FormData): Prom
 
 export async function updatePolicyDetails(policyId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: me } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
+  const isManager = me?.role === "manager";
 
-  const { error } = await supabase
-    .from("policies")
-    .update({
-      category_id: formData.get("category_id"),
-      insurance_company: strOrNull(formData.get("insurance_company")),
-      policy_detail: strOrNull(formData.get("policy_detail")),
-      coverage_start_date: strOrNull(formData.get("coverage_start_date")),
-      coverage_end_date: strOrNull(formData.get("coverage_end_date")),
-      net_premium: numOrNull(formData.get("net_premium")),
-      stamp_duty: numOrNull(formData.get("stamp_duty")) ?? 0,
-      vat: numOrNull(formData.get("vat")) ?? 0,
-      total_collectible: numOrNull(formData.get("total_collectible")),
-      company_commission_rate: numOrNull(formData.get("company_commission_rate")),
-      agent_id: strOrNull(formData.get("agent_id")),
-      agent_commission_rate: numOrNull(formData.get("agent_commission_rate")),
-      customer_discount_amount: numOrNull(formData.get("customer_discount_amount")) ?? 0,
-      notes: strOrNull(formData.get("notes")),
-    })
-    .eq("id", policyId);
+  const update: Record<string, unknown> = {
+    category_id: formData.get("category_id"),
+    insurance_company: strOrNull(formData.get("insurance_company")),
+    policy_detail: strOrNull(formData.get("policy_detail")),
+    coverage_start_date: strOrNull(formData.get("coverage_start_date")),
+    coverage_end_date: strOrNull(formData.get("coverage_end_date")),
+    net_premium: numOrNull(formData.get("net_premium")),
+    stamp_duty: numOrNull(formData.get("stamp_duty")) ?? 0,
+    vat: numOrNull(formData.get("vat")) ?? 0,
+    total_collectible: numOrNull(formData.get("total_collectible")),
+    agent_id: strOrNull(formData.get("agent_id")),
+    agent_commission_rate: numOrNull(formData.get("agent_commission_rate")),
+    customer_discount_amount: numOrNull(formData.get("customer_discount_amount")) ?? 0,
+    notes: strOrNull(formData.get("notes")),
+  };
+  // Only a manager may set the company commission rate — never let a
+  // sales submission (where the field isn't rendered) null it out.
+  if (isManager) {
+    update.company_commission_rate = numOrNull(formData.get("company_commission_rate"));
+  }
+
+  const { error } = await supabase.from("policies").update(update).eq("id", policyId);
 
   if (error) return { error: error.message };
   revalidatePath(`/policies/${policyId}`);
