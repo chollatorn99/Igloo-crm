@@ -11,6 +11,7 @@ type HistoryPolicyRow = {
   net_premium: number | null;
   category_id: string;
   renewal_outcome: string;
+  insurance_company: string | null;
   category: { name: string } | null;
   customer: { id: string; name: string; phone: string | null } | null;
 };
@@ -23,6 +24,11 @@ type CustomerAgg = {
   notRenewed: boolean;
   totalPremium: number;
   count: number;
+  // From the newest policy (rows arrive ordered by closed_date desc, so the
+  // first one seen per customer is the latest).
+  lastCategory: string;
+  lastInsurer: string;
+  lastPremium: number;
 };
 
 const PAGE_SIZE = 50;
@@ -34,13 +40,13 @@ export default async function HistoryPage({
   searchParams: Promise<{
     year?: string;
     category_id?: string;
-    outcome?: string;
+    status?: string;
     sort?: string;
     dir?: string;
     page?: string;
   }>;
 }) {
-  const { year, category_id, outcome, sort, dir, page: pageParam } = await searchParams;
+  const { year, category_id, status, sort, dir, page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const sortKey: SortKey = (["latest", "premium", "years", "name"] as const).includes(sort as SortKey)
     ? (sort as SortKey)
@@ -58,7 +64,7 @@ export default async function HistoryPage({
     let query = supabase
       .from("policies")
       .select(
-        "id, closed_date, coverage_end_date, net_premium, category_id, renewal_outcome, category:policy_categories(name), customer:customers(id, name, phone)",
+        "id, closed_date, coverage_end_date, net_premium, category_id, renewal_outcome, insurance_company, category:policy_categories(name), customer:customers(id, name, phone)",
       )
       .eq("deal_status", "win")
       .not("closed_date", "is", null)
@@ -78,26 +84,36 @@ export default async function HistoryPage({
     const y = new Date(p.closed_date).getFullYear();
     const isActive = p.coverage_end_date ? new Date(p.coverage_end_date) >= today : false;
 
-    const entry = byCustomer.get(customer.id) ?? {
-      customer,
-      years: new Set<number>(),
-      latestYear: y,
-      active: false,
-      notRenewed: false,
-      totalPremium: 0,
-      count: 0,
-    };
+    let entry = byCustomer.get(customer.id);
+    if (!entry) {
+      // First row for this customer = newest policy (desc order).
+      entry = {
+        customer,
+        years: new Set<number>(),
+        latestYear: y,
+        active: false,
+        notRenewed: false,
+        totalPremium: 0,
+        count: 0,
+        lastCategory: p.category?.name ?? "-",
+        lastInsurer: p.insurance_company ?? "-",
+        lastPremium: Number(p.net_premium ?? 0),
+      };
+      byCustomer.set(customer.id, entry);
+    }
     entry.years.add(y);
     entry.latestYear = Math.max(entry.latestYear, y);
     entry.active = entry.active || isActive;
     entry.notRenewed = entry.notRenewed || p.renewal_outcome === "not_renewed";
     entry.totalPremium += Number(p.net_premium ?? 0);
     entry.count += 1;
-    byCustomer.set(customer.id, entry);
   }
 
   let allRows = [...byCustomer.values()];
-  if (outcome === "not_renewed") allRows = allRows.filter((r) => r.notRenewed);
+  // Status filter — "lapsed" (ขาดการต่ออายุ) is the win-back call list.
+  if (status === "lapsed") allRows = allRows.filter((r) => !r.active);
+  else if (status === "active") allRows = allRows.filter((r) => r.active);
+  else if (status === "not_renewed") allRows = allRows.filter((r) => r.notRenewed);
 
   const cmp: Record<SortKey, (a: CustomerAgg, b: CustomerAgg) => number> = {
     latest: (a, b) => a.latestYear - b.latestYear,
@@ -112,22 +128,25 @@ export default async function HistoryPage({
 
   const yearOptions = [...new Set(policies.map((p) => new Date(p.closed_date).getFullYear()))].sort((a, b) => b - a);
 
+  const statusLabel = (r: CustomerAgg) =>
+    r.notRenewed ? "ไม่ต่อ (ทำเครื่องหมาย)" : r.active ? "Active" : "ขาดการต่ออายุ";
+
   const exportRows = allRows.map((r) => ({
     ลูกค้า: r.customer.name,
     เบอร์โทร: r.customer.phone,
+    ประเภทล่าสุด: r.lastCategory,
     ปีที่ซื้อล่าสุด: r.latestYear,
     จำนวนปีที่ซื้อ: r.years.size,
-    จำนวนกรมธรรม์: r.count,
-    ยอดเบี้ยรวม: r.totalPremium,
-    สถานะ: r.notRenewed ? "ไม่ต่อ" : r.active ? "Active" : "ขาดการต่ออายุ",
+    บริษัทประกันหลังสุด: r.lastInsurer,
+    เบี้ยหลังสุด: r.lastPremium,
+    สถานะ: statusLabel(r),
   }));
 
-  // Header that links to sort by its column, toggling asc/desc, keeping filters.
   const SortHeader = ({ label, col }: { label: string; col: SortKey }) => {
     const sp = new URLSearchParams();
     if (year) sp.set("year", year);
     if (category_id) sp.set("category_id", category_id);
-    if (outcome) sp.set("outcome", outcome);
+    if (status) sp.set("status", status);
     sp.set("sort", col);
     sp.set("dir", sortKey === col && desc ? "asc" : "desc");
     const arrow = sortKey === col ? (desc ? " ↓" : " ↑") : "";
@@ -143,28 +162,34 @@ export default async function HistoryPage({
 
   return (
     <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">ประวัติลูกค้าเก่า / Win-back</h1>
+          <h1 className="text-lg font-semibold text-slate-900">ลูกค้าเก่า / โทรกลับ (Win-back)</h1>
           <p className="text-xs text-slate-500">
-            {total.toLocaleString()} ลูกค้า{outcome === "not_renewed" ? " (เฉพาะที่ไม่ต่อ)" : ""}
+            {total.toLocaleString()} ลูกค้า
+            {status === "lapsed" ? " · เฉพาะที่ขาดต่ออายุ" : status === "active" ? " · เฉพาะ Active" : status === "not_renewed" ? " · เฉพาะที่ทำเครื่องหมายไม่ต่อ" : ""}
           </p>
         </div>
         {canExport && (
           <ExportButton
             rows={exportRows}
-            filename="customer-history"
-            exportType="history"
-            filterNote={
-              [year && `ปี ${year}`, category_id && "กรองประเภท", outcome === "not_renewed" && "ไม่ต่อ"]
-                .filter(Boolean)
-                .join(", ") || undefined
-            }
+            filename="win-back"
+            exportType="win-back"
+            filterNote={[year && `ปี ${year}`, category_id && "กรองประเภท", status].filter(Boolean).join(", ") || undefined}
           />
         )}
       </div>
+      <p className="mb-4 text-xs text-slate-400">
+        รายชื่อลูกค้าที่เคยซื้อประกัน — ใช้โทรกลับเสนอขายลูกค้าเก่า (กรอง &quot;ขาดต่ออายุ&quot; เพื่อดูเฉพาะที่ยังไม่ต่อ)
+      </p>
 
       <form className="mb-4 flex flex-wrap gap-2">
+        <select name="status" defaultValue={status ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+          <option value="">สถานะ: ทั้งหมด</option>
+          <option value="lapsed">ขาดต่ออายุ (ควรโทรกลับ)</option>
+          <option value="active">Active (ยังมีผลอยู่)</option>
+          <option value="not_renewed">ทำเครื่องหมาย &quot;ไม่ต่อ&quot;</option>
+        </select>
         <select name="year" defaultValue={year ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
           <option value="">ทุกปี</option>
           {yearOptions.map((y) => (
@@ -185,10 +210,6 @@ export default async function HistoryPage({
             </option>
           ))}
         </select>
-        <select name="outcome" defaultValue={outcome ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
-          <option value="">สถานะต่ออายุ: ทั้งหมด</option>
-          <option value="not_renewed">เฉพาะที่ไม่ต่อ</option>
-        </select>
         <button className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
           กรอง
         </button>
@@ -200,9 +221,11 @@ export default async function HistoryPage({
             <tr>
               <SortHeader label="ลูกค้า" col="name" />
               <th className="px-4 py-3">เบอร์โทร</th>
+              <th className="px-4 py-3">ประเภทล่าสุด</th>
               <SortHeader label="ปีที่ซื้อล่าสุด" col="latest" />
               <SortHeader label="จำนวนปีที่ซื้อ" col="years" />
-              <SortHeader label="ยอดเบี้ยรวม" col="premium" />
+              <th className="px-4 py-3">บ.ประกันหลังสุด</th>
+              <th className="px-4 py-3">เบี้ยหลังสุด</th>
               <th className="px-4 py-3">สถานะ</th>
             </tr>
           </thead>
@@ -215,9 +238,11 @@ export default async function HistoryPage({
                   </Link>
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-slate-600">{r.customer.phone ?? "-"}</td>
+                <td className="px-4 py-3 text-slate-600">{r.lastCategory}</td>
                 <td className="px-4 py-3 text-slate-600">{r.latestYear}</td>
                 <td className="px-4 py-3 text-slate-600">{r.years.size}</td>
-                <td className="px-4 py-3 font-mono text-slate-600">{r.totalPremium.toLocaleString()}</td>
+                <td className="px-4 py-3 text-slate-600">{r.lastInsurer}</td>
+                <td className="px-4 py-3 font-mono text-slate-600">{r.lastPremium.toLocaleString()}</td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -228,14 +253,14 @@ export default async function HistoryPage({
                           : "bg-amber-100 text-amber-700"
                     }`}
                   >
-                    {r.notRenewed ? "ไม่ต่อ" : r.active ? "Active" : "ขาดการต่ออายุ"}
+                    {r.notRenewed ? "ไม่ต่อ" : r.active ? "Active" : "ขาดต่ออายุ"}
                   </span>
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                   ไม่มีข้อมูล
                 </td>
               </tr>
@@ -244,7 +269,7 @@ export default async function HistoryPage({
         </table>
       </div>
 
-      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ year, category_id, outcome, sort, dir }} />
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ year, category_id, status, sort, dir }} />
     </div>
   );
 }
