@@ -118,6 +118,11 @@ for (const r of history) {
   categoryCounts[catName] = (categoryCounts[catName] ?? 0) + 1;
 
   const start = toDateStr(r["วันที่เริ่มคุ้มครอง"]);
+  // The company counts sales by report date (วันที่แจ้งงาน), so that drives
+  // closed_date/reported_date and the dashboard period. Coverage start is
+  // kept separately for renewal reminders. Fall back to coverage start if a
+  // row is missing the report date.
+  const reported = toDateStr(r["วันที่แจ้งงาน"]) ?? start;
   const premium = r["เบี้ยประกัน"] == null ? null : Number(r["เบี้ยประกัน"]);
   const comRaw = r["ค่าคอม"] == null ? null : Number(r["ค่าคอม"]);
   // Rates arrive as fractions (0.18 = 18%). Anything ≥ 1 would be a data
@@ -147,13 +152,13 @@ for (const r of history) {
     policy_detail: detailParts.join(" · ") || null,
     coverage_start_date: start,
     coverage_end_date: plusOneYear(start),
-    closed_date: start,
+    closed_date: reported,
     deal_status: "win",
     net_premium: premium,
     company_commission_rate: rate,
     customer_discount_amount: discount,
     notes: noteParts.join(" | ") || null,
-    reported_date: start ?? "2026-07-09",
+    reported_date: reported ?? "2026-07-09",
   });
 }
 
