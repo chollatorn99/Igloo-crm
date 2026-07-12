@@ -8,6 +8,7 @@ type DashPolicyRow = {
   net_premium: number | null;
   company_commission_amount: number | null;
   closed_date: string | null;
+  category_id: string | null;
   category: { name: string } | null;
   customer: { owner_id: string } | null;
 };
@@ -85,7 +86,7 @@ export default async function DashboardHome({
       let q = supabase
         .from("policies")
         .select(
-          "deal_status, net_premium, company_commission_amount, closed_date, category:policy_categories(name), customer:customers(owner_id)",
+          "deal_status, net_premium, company_commission_amount, closed_date, category_id, category:policy_categories(name), customer:customers(owner_id)",
         )
         .in("deal_status", ["win", "lost"])
         .order("closed_date")
@@ -105,7 +106,7 @@ export default async function DashboardHome({
 
   for (const n of notes) get(n.author_id).calls++;
 
-  const byCategory = new Map<string, { count: number; premium: number; commission: number }>();
+  const byCategory = new Map<string, { id: string | null; name: string; count: number; premium: number; commission: number }>();
   for (const p of policies) {
     const ownerId = p.customer?.owner_id;
     if (!ownerId) continue;
@@ -117,7 +118,7 @@ export default async function DashboardHome({
       s.premium += premium;
       s.commission += commission;
       const catName = p.category?.name ?? "ไม่ระบุ";
-      const c = byCategory.get(catName) ?? { count: 0, premium: 0, commission: 0 };
+      const c = byCategory.get(catName) ?? { id: p.category_id, name: catName, count: 0, premium: 0, commission: 0 };
       c.count++;
       c.premium += premium;
       c.commission += commission;
@@ -136,12 +137,19 @@ export default async function DashboardHome({
   const scope = isManager ? totals : mine;
   const winRate = (s: Stat) => (s.win + s.lost === 0 ? 0 : Math.round((s.win / (s.win + s.lost)) * 100));
 
-  const categories = [...byCategory.entries()]
-    .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.premium - a.premium);
+  const categories = [...byCategory.values()].sort((a, b) => b.premium - a.premium);
   const maxCatPremium = Math.max(1, ...categories.map((c) => c.premium));
   const sortedNames = [...byCategory.keys()].sort();
   const colorFor = (name: string) => PALETTE[sortedNames.indexOf(name) % PALETTE.length];
+
+  // Drill-down link to the policy list for a category within the current window.
+  const catHref = (categoryId: string | null) => {
+    const p = new URLSearchParams();
+    if (categoryId) p.set("category_id", categoryId);
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
+    return `/policies?${p.toString()}`;
+  };
 
   const presets = [
     { key: "month", label: "เดือนนี้" },
@@ -204,12 +212,18 @@ export default async function DashboardHome({
         <Card label="Win Rate" value={`${winRate(scope)}%`} sub={`Win ${scope.win} / Lost ${scope.lost}`} />
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold text-slate-600">ประเภทกรมธรรม์ที่ขายได้ (ตามเบี้ยประกัน)</h2>
+      <h2 className="mb-3 text-sm font-semibold text-slate-600">
+        ประเภทกรมธรรม์ที่ขายได้ (ตามเบี้ยประกัน) — คลิกเพื่อดูรายการ
+      </h2>
       <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5">
         {categories.length === 0 && <p className="text-sm text-slate-400">ไม่มียอดขายในช่วงที่เลือก</p>}
-        <div className="space-y-2.5">
+        <div className="space-y-1">
           {categories.map((c) => (
-            <div key={c.name} className="flex items-center gap-3 text-sm">
+            <Link
+              key={c.name}
+              href={catHref(c.id)}
+              className="flex items-center gap-3 rounded-md p-1.5 text-sm hover:bg-slate-50"
+            >
               <div className="w-28 shrink-0 truncate text-slate-700" title={c.name}>{c.name}</div>
               <div className="flex-1">
                 <div className="h-5 w-full overflow-hidden rounded bg-slate-100">
@@ -223,8 +237,8 @@ export default async function DashboardHome({
               {isManager && (
                 <div className="w-24 shrink-0 text-right font-mono text-xs text-slate-400">คอม {baht(c.commission)}</div>
               )}
-              <div className="w-14 shrink-0 text-right text-xs text-slate-400">{c.count} ราย</div>
-            </div>
+              <div className="w-16 shrink-0 text-right text-xs text-slate-400">{c.count} ราย →</div>
+            </Link>
           ))}
         </div>
       </div>
