@@ -1,6 +1,10 @@
 -- Capture WHY a customer didn't renew, recorded when marking "ไม่ต่อ".
 alter table policies add column not_renewed_reason text;
 
+-- Drop the legacy 2-arg version so the new 3-arg one below is the only
+-- overload — otherwise PostgREST can't resolve rpc calls (PGRST203).
+drop function if exists set_renewal_outcome(uuid, renewal_outcome);
+
 -- Extend the outcome setter to store the reason (only kept when the outcome
 -- is not_renewed; cleared otherwise). p_reason defaults null so existing
 -- 2-arg calls keep working.

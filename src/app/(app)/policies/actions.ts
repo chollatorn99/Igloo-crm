@@ -156,6 +156,80 @@ export async function verifyPayment(
   return {};
 }
 
+// Add a year to a YYYY-MM-DD string, clamping Feb-29 -> Feb-28.
+function addOneYear(dateStr: string | null): string | null {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const ny = y + 1;
+  // Feb 29 -> Feb 28 in a non-leap next year.
+  const day = m === 2 && d === 29 && !(ny % 4 === 0 && (ny % 100 !== 0 || ny % 400 === 0)) ? 28 : d;
+  return `${ny}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+// "ต่ออายุ" = one year's renewal is a NEW policy row (1 policy = 1 yearly
+// deal), never an overwrite — that keeps the old year's history and lets the
+// new year count as fresh revenue. We clone the old policy's terms as a
+// starting point (insurer/premium/agent/commission), shift coverage +1 year,
+// and open it as a pending draft so sales can change ประเภท/บริษัท/เบี้ย
+// before closing Win. The old policy is flagged renewed in the same step.
+export async function renewPolicy(policyId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const { data: old, error: readErr } = await supabase
+    .from("policies")
+    .select(
+      "customer_id, category_id, insurance_company, policy_detail, coverage_start_date, coverage_end_date, net_premium, stamp_duty, vat, company_commission_rate, agent_id, agent_commission_rate, customer_discount_amount",
+    )
+    .eq("id", policyId)
+    .single();
+
+  if (readErr || !old) return { error: readErr?.message ?? "ไม่พบกรมธรรม์เดิม" };
+
+  // New coverage runs from where the old one ends; if unknown, leave blank.
+  const newStart = old.coverage_end_date ?? null;
+  const newEnd = addOneYear(old.coverage_end_date) ?? addOneYear(old.coverage_start_date);
+  const oldYear = old.coverage_start_date ? old.coverage_start_date.slice(0, 4) : "";
+
+  const { data: created, error: insErr } = await supabase
+    .from("policies")
+    .insert({
+      customer_id: old.customer_id,
+      category_id: old.category_id,
+      insurance_company: old.insurance_company,
+      policy_detail: old.policy_detail,
+      coverage_start_date: newStart,
+      coverage_end_date: newEnd,
+      net_premium: old.net_premium,
+      stamp_duty: old.stamp_duty ?? 0,
+      vat: old.vat ?? 0,
+      company_commission_rate: old.company_commission_rate,
+      agent_id: old.agent_id,
+      agent_commission_rate: old.agent_commission_rate,
+      customer_discount_amount: old.customer_discount_amount ?? 0,
+      notes: `ต่ออายุจากกรมธรรม์ปี ${oldYear} — ตรวจสอบ/แก้ไขประเภท บริษัท และเบี้ยก่อนปิด Win`,
+      deal_status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (insErr || !created) return { error: insErr?.message ?? "สร้างกรมธรรม์ใหม่ไม่สำเร็จ" };
+
+  // Flag the old policy renewed so it drops off the reminder list. Pass all
+  // three params (p_reason: null) so PostgREST resolves the 3-arg overload
+  // unambiguously — a 2-arg call clashes with the legacy 2-arg function.
+  const { error: rpcErr } = await supabase.rpc("set_renewal_outcome", {
+    p_policy_id: policyId,
+    p_outcome: "renewed",
+    p_reason: null,
+  });
+  // Non-fatal: the new policy already exists; surface but don't block.
+  if (rpcErr) return { error: `สร้างกรมธรรม์ใหม่แล้ว แต่ติดธง 'ต่อแล้ว' ไม่สำเร็จ: ${rpcErr.message}` };
+
+  revalidatePath("/renewals");
+  redirect(`/policies/${created.id}`);
+}
+
 // Records the renewal follow-up outcome (Option B) — separate from
 // deal_status so it never touches the historical Win/revenue. Goes through
 // the set_renewal_outcome DB function, which enforces owner/manager scope.

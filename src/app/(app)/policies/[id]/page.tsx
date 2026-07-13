@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { setDealStatus, verifyPayment, setRenewalOutcome } from "../actions";
+import { setDealStatus, verifyPayment, setRenewalOutcome, renewPolicy } from "../actions";
 import { PolicyEditForm } from "./edit-form";
 import { PaymentReportForm } from "./payment-report-form";
 import { ActionForm } from "@/components/ActionForm";
@@ -73,6 +73,7 @@ export default async function PolicyDetailPage({
   const markRenewed = setRenewalOutcome.bind(null, id, "renewed");
   const markNotRenewed = setRenewalOutcome.bind(null, id, "not_renewed");
   const markRenewalPending = setRenewalOutcome.bind(null, id, "pending");
+  const renew = renewPolicy.bind(null, id);
 
   return (
     <div className="mx-auto max-w-2xl p-8">
@@ -122,41 +123,55 @@ export default async function PolicyDetailPage({
             )}
           </div>
           {isOwnerOrManager && (
-            <div className="flex flex-wrap items-center gap-2">
-              <ActionForm action={markRenewed}>
-                <button className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
-                  ต่อแล้ว
+            <div className="space-y-3">
+              {/* Primary path: renewal = a new year's policy. */}
+              <ActionForm action={renew}>
+                <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+                  ต่ออายุ (สร้างกรมธรรม์ปีใหม่)
                 </button>
+                <p className="mt-1 text-xs text-slate-400">
+                  ก๊อปปี้ข้อมูลเดิม + เลื่อนวันคุ้มครอง +1 ปี เปิดเป็นดีลใหม่ให้แก้ประเภท/บริษัท/เบี้ยก่อนปิด Win —
+                  กรมธรรม์เก่าจะถูกทำเครื่องหมาย &quot;ต่อแล้ว&quot; อัตโนมัติ
+                </p>
               </ActionForm>
-              <ActionForm action={markNotRenewed}>
-                <div className="flex items-center gap-2">
-                  <input
-                    name="not_renewed_reason"
-                    list="nr-reasons"
-                    defaultValue={policy.not_renewed_reason ?? ""}
-                    placeholder="เหตุผลที่ไม่ต่อ"
-                    className="w-52 rounded-md border border-slate-300 px-2 py-1.5 text-xs"
-                  />
-                  <datalist id="nr-reasons">
-                    <option value="เบี้ยแพงเกินไป" />
-                    <option value="เปลี่ยนไปทำกับบริษัทอื่น" />
-                    <option value="ขายรถ / ทรัพย์สินแล้ว" />
-                    <option value="ติดต่อลูกค้าไม่ได้" />
-                    <option value="ลูกค้าไม่สะดวกต่อ" />
-                    <option value="เคลมยาก / ไม่พอใจบริการ" />
-                  </datalist>
-                  <button className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
-                    ไม่ต่อ
+
+              <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                <ActionForm action={markNotRenewed}>
+                  <div className="flex items-center gap-2">
+                    <input
+                      name="not_renewed_reason"
+                      list="nr-reasons"
+                      defaultValue={policy.not_renewed_reason ?? ""}
+                      placeholder="เหตุผลที่ไม่ต่อ"
+                      className="w-52 rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                    />
+                    <datalist id="nr-reasons">
+                      <option value="เบี้ยแพงเกินไป" />
+                      <option value="เปลี่ยนไปทำกับบริษัทอื่น" />
+                      <option value="ขายรถ / ทรัพย์สินแล้ว" />
+                      <option value="ติดต่อลูกค้าไม่ได้" />
+                      <option value="ลูกค้าไม่สะดวกต่อ" />
+                      <option value="เคลมยาก / ไม่พอใจบริการ" />
+                    </datalist>
+                    <button className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
+                      ไม่ต่อ
+                    </button>
+                  </div>
+                </ActionForm>
+                <ActionForm action={markRenewed}>
+                  <button className="rounded-md border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50">
+                    ต่อแล้ว (ไม่สร้างใหม่)
                   </button>
-                </div>
-              </ActionForm>
-              <ActionForm action={markRenewalPending}>
-                <button className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
-                  ล้าง (รอติดตาม)
-                </button>
-              </ActionForm>
+                </ActionForm>
+                <ActionForm action={markRenewalPending}>
+                  <button className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
+                    ล้าง (รอติดตาม)
+                  </button>
+                </ActionForm>
+              </div>
               <p className="text-xs text-slate-400">
-                &quot;ไม่ต่อ&quot; จะเอาออกจากรายการแจ้งเตือนต่ออายุ โดยไม่กระทบยอดขายเดิม
+                &quot;ต่อแล้ว (ไม่สร้างใหม่)&quot; ใช้กรณีลูกค้าต่อที่อื่น/บันทึกปีใหม่ไว้แล้ว — แค่เอาออกจากแจ้งเตือน
+                โดยไม่สร้างกรมธรรม์ · &quot;ไม่ต่อ&quot; และ &quot;ต่อแล้ว&quot; ไม่กระทบยอดขายเดิม
               </p>
             </div>
           )}
