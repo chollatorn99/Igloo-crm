@@ -169,10 +169,12 @@ function addOneYear(dateStr: string | null): string | null {
 
 // "ต่ออายุ" = one year's renewal is a NEW policy row (1 policy = 1 yearly
 // deal), never an overwrite — that keeps the old year's history and lets the
-// new year count as fresh revenue. We clone the old policy's terms as a
-// starting point (insurer/premium/agent/commission), shift coverage +1 year,
-// and open it as a pending draft so sales can change ประเภท/บริษัท/เบี้ย
-// before closing Win. The old policy is flagged renewed in the same step.
+// new year count as fresh revenue. Clicking it means the deal is CLOSED: we
+// clone the old policy's terms (insurer/premium/agent/commission), shift
+// coverage +1 year, and create it as a Win closed today so it counts on the
+// dashboard immediately. Premium/insurer/ประเภท stay editable afterward via
+// the edit form (renewals often change terms). The old policy is flagged
+// renewed in the same step.
 export async function renewPolicy(policyId: string): Promise<ActionResult> {
   const supabase = await createClient();
 
@@ -207,8 +209,13 @@ export async function renewPolicy(policyId: string): Promise<ActionResult> {
       agent_id: old.agent_id,
       agent_commission_rate: old.agent_commission_rate,
       customer_discount_amount: old.customer_discount_amount ?? 0,
-      notes: `ต่ออายุจากกรมธรรม์ปี ${oldYear} — ตรวจสอบ/แก้ไขประเภท บริษัท และเบี้ยก่อนปิด Win`,
-      deal_status: "pending",
+      notes: `ต่ออายุจากกรมธรรม์ปี ${oldYear} — แก้ไขประเภท/บริษัท/เบี้ยได้ตามจริง`,
+      // Closed the moment "ต่ออายุ" is pressed. The transitions trigger is
+      // UPDATE-only, so on this fresh INSERT we set closed_date (= today, the
+      // revenue-reporting date) and payment_status ourselves.
+      deal_status: "win",
+      closed_date: new Date().toISOString().slice(0, 10),
+      payment_status: "awaiting_payment",
     })
     .select("id")
     .single();
