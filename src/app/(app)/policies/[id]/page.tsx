@@ -117,6 +117,9 @@ export default async function PolicyDetailPage({
             >
               {RENEWAL_OUTCOME_LABEL[policy.renewal_outcome] ?? "รอติดตาม"}
             </span>
+            {policy.renewal_outcome === "not_renewed" && policy.not_renewed_reason && (
+              <span className="text-xs text-slate-500">เหตุผล: {policy.not_renewed_reason}</span>
+            )}
           </div>
           {isOwnerOrManager && (
             <div className="flex flex-wrap items-center gap-2">
@@ -126,9 +129,26 @@ export default async function PolicyDetailPage({
                 </button>
               </ActionForm>
               <ActionForm action={markNotRenewed}>
-                <button className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
-                  ไม่ต่อ
-                </button>
+                <div className="flex items-center gap-2">
+                  <input
+                    name="not_renewed_reason"
+                    list="nr-reasons"
+                    defaultValue={policy.not_renewed_reason ?? ""}
+                    placeholder="เหตุผลที่ไม่ต่อ"
+                    className="w-52 rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                  />
+                  <datalist id="nr-reasons">
+                    <option value="เบี้ยแพงเกินไป" />
+                    <option value="เปลี่ยนไปทำกับบริษัทอื่น" />
+                    <option value="ขายรถ / ทรัพย์สินแล้ว" />
+                    <option value="ติดต่อลูกค้าไม่ได้" />
+                    <option value="ลูกค้าไม่สะดวกต่อ" />
+                    <option value="เคลมยาก / ไม่พอใจบริการ" />
+                  </datalist>
+                  <button className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
+                    ไม่ต่อ
+                  </button>
+                </div>
               </ActionForm>
               <ActionForm action={markRenewalPending}>
                 <button className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">

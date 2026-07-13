@@ -162,11 +162,15 @@ export async function verifyPayment(
 export async function setRenewalOutcome(
   policyId: string,
   outcome: "pending" | "renewed" | "not_renewed",
+  formData?: FormData,
 ): Promise<ActionResult> {
   const supabase = await createClient();
+  // Only "ไม่ต่อ" carries a reason; the DB function clears it otherwise.
+  const reason = outcome === "not_renewed" ? strOrNull(formData?.get("not_renewed_reason") ?? null) : null;
   const { error } = await supabase.rpc("set_renewal_outcome", {
     p_policy_id: policyId,
     p_outcome: outcome,
+    p_reason: reason,
   });
 
   if (error) return { error: error.message };
