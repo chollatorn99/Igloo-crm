@@ -79,6 +79,21 @@ export async function updatePolicyDetails(policyId: string, formData: FormData):
   return {};
 }
 
+// Delete a policy created by mistake (e.g. an accidental duplicate renewal).
+// RLS (policies_delete) restricts this to the owner or a manager. Redirects
+// back to the customer so the corrected policy list is shown.
+export async function deletePolicy(policyId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const { data: pol } = await supabase.from("policies").select("customer_id").eq("id", policyId).single();
+  const { error } = await supabase.from("policies").delete().eq("id", policyId);
+  if (error) return { error: error.message };
+
+  const customerId = pol?.customer_id;
+  if (customerId) revalidatePath(`/customers/${customerId}`);
+  redirect(customerId ? `/customers/${customerId}` : "/customers");
+}
+
 export async function setDealStatus(policyId: string, status: "win" | "lost"): Promise<ActionResult> {
   const supabase = await createClient();
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { setDealStatus, verifyPayment, setRenewalOutcome, renewPolicy } from "../actions";
+import { setDealStatus, verifyPayment, setRenewalOutcome, renewPolicy, deletePolicy } from "../actions";
 import { PolicyEditForm } from "./edit-form";
 import { PaymentReportForm } from "./payment-report-form";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
@@ -74,6 +74,7 @@ export default async function PolicyDetailPage({
   const markNotRenewed = setRenewalOutcome.bind(null, id, "not_renewed");
   const markRenewalPending = setRenewalOutcome.bind(null, id, "pending");
   const renew = renewPolicy.bind(null, id);
+  const removePolicy = deletePolicy.bind(null, id);
 
   return (
     <div className="mx-auto max-w-2xl p-8">
@@ -299,6 +300,24 @@ export default async function PolicyDetailPage({
 
       {isOwnerOrManager && (
         <PolicyEditForm policy={policy} categories={categories ?? []} agents={agents ?? []} />
+      )}
+
+      {/* Delete — for mistakes / accidental duplicates. Owner or manager. */}
+      {isOwnerOrManager && (
+        <div className="mt-6 flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4">
+          <div>
+            <p className="text-sm font-semibold text-rose-800">ลบกรมธรรม์นี้</p>
+            <p className="text-xs text-rose-600">ใช้กรณีบันทึกผิด/สร้างซ้ำ — ลบถาวร กู้คืนไม่ได้</p>
+          </div>
+          <ActionForm action={removePolicy} confirmMessage="ยืนยันลบกรมธรรม์นี้ถาวร? การกระทำนี้ย้อนกลับไม่ได้">
+            <SubmitButton
+              pendingLabel="กำลังลบ…"
+              className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+            >
+              ลบกรมธรรม์
+            </SubmitButton>
+          </ActionForm>
+        </div>
       )}
     </div>
   );

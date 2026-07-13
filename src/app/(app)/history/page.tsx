@@ -1,47 +1,37 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { fetchAll } from "@/lib/fetchAll";
 import { Pagination } from "@/components/Pagination";
-import { ExportButton } from "@/app/(app)/payments/export-button";
+import { LazyExportButton } from "./lazy-export-button";
 
-type HistoryPolicyRow = {
-  id: string;
-  closed_date: string;
-  coverage_end_date: string | null;
-  net_premium: number | null;
-  category_id: string;
-  renewal_outcome: string;
-  not_renewed_reason: string | null;
-  insurance_company: string | null;
-  category: { name: string } | null;
-  customer: { id: string; name: string; phone: string | null } | null;
-};
-
-type CustomerAgg = {
-  customer: { id: string; name: string; phone: string | null };
-  years: Set<number>;
-  latestYear: number;
+// One row per customer, pre-aggregated by the customer_winback DB view — so
+// this page fetches a single 50-row slice instead of pulling ~6,000 policies
+// and aggregating in JS on every load.
+type ViewRow = {
+  customer_id: string;
+  name: string;
+  phone: string | null;
+  total_premium: number | null;
+  latest_year: number | null;
+  years_count: number | null;
   active: boolean;
-  notRenewed: boolean;
+  not_renewed: boolean;
   renewed: boolean;
-  totalPremium: number;
-  count: number;
-  // From the newest policy (rows arrive ordered by closed_date desc, so the
-  // first one seen per customer is the latest).
-  lastCategory: string;
-  lastInsurer: string;
-  lastPremium: number;
-  lastCoverageEnd: string | null;
-  // Days from today (ignoring year) to the anniversary of the latest expiry —
-  // drives the same "who's up for renewal next" ordering as /renewals.
-  annivOffset: number;
-  notRenewedReason: string | null;
+  last_category: string | null;
+  last_insurer: string | null;
+  last_premium: number | null;
+  last_coverage_end: string | null;
+  anniv_offset: number | null;
 };
 
 const PAGE_SIZE = 50;
 type SortKey = "renewal" | "latest" | "premium" | "years" | "name";
-// Ascending feels natural for the anniversary (soonest first) and names (A→Z);
-// the rest default to biggest-first.
+const SORT_COL: Record<SortKey, string> = {
+  renewal: "anniv_offset",
+  latest: "latest_year",
+  premium: "total_premium",
+  years: "years_count",
+  name: "name",
+};
 const DEFAULT_DIR: Record<SortKey, "asc" | "desc"> = {
   renewal: "asc",
   name: "asc",
@@ -50,10 +40,11 @@ const DEFAULT_DIR: Record<SortKey, "asc" | "desc"> = {
   years: "desc",
 };
 
-// Day-of-year (1..366) for a month/day, ignoring the actual year, so policies
-// from any year sort by when they come up again within the 12-month cycle.
-const CUM_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
-const dayOfYear = (month: number, day: number) => CUM_DAYS[month] + day;
+const dayMonth = (s: string | null) => {
+  if (!s) return "-";
+  const d = new Date(s);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
 
 export default async function HistoryPage({
   searchParams,
@@ -82,113 +73,25 @@ export default async function HistoryPage({
 
   const { data: categories } = await supabase.from("policy_categories").select("id, name").order("name");
 
-  const policies = await fetchAll<HistoryPolicyRow>((from, to) => {
-    let query = supabase
-      .from("policies")
-      .select(
-        "id, closed_date, coverage_end_date, net_premium, category_id, renewal_outcome, not_renewed_reason, insurance_company, category:policy_categories(name), customer:customers(id, name, phone)",
-      )
-      .eq("deal_status", "win")
-      .not("closed_date", "is", null)
-      .order("closed_date", { ascending: false })
-      .range(from, to);
-    if (category_id) query = query.eq("category_id", category_id);
-    if (year) query = query.gte("closed_date", `${year}-01-01`).lte("closed_date", `${year}-12-31`);
-    return query as unknown as PromiseLike<{ data: HistoryPolicyRow[] | null; error: { message: string } | null }>;
-  });
+  let query = supabase
+    .from("customer_winback")
+    .select("*", { count: "exact" })
+    .order(SORT_COL[sortKey], { ascending: !desc })
+    .order("customer_id"); // stable tiebreak
+  if (status === "lapsed") query = query.eq("active", false);
+  else if (status === "active") query = query.eq("active", true);
+  else if (status === "renewed") query = query.eq("renewed", true);
+  else if (status === "not_renewed") query = query.eq("not_renewed", true);
+  if (year) query = query.eq("latest_year", Number(year));
+  if (category_id) query = query.eq("last_category_id", category_id);
+  query = query.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
-  const today = new Date();
-  const todayDOY = dayOfYear(today.getMonth(), today.getDate());
-  const byCustomer = new Map<string, CustomerAgg>();
+  const { data, count } = await query;
+  const rows = (data ?? []) as ViewRow[];
+  const total = count ?? 0;
 
-  for (const p of policies) {
-    const customer = p.customer;
-    if (!customer) continue;
-    const y = new Date(p.closed_date).getFullYear();
-    const isActive = p.coverage_end_date ? new Date(p.coverage_end_date) >= today : false;
-
-    let entry = byCustomer.get(customer.id);
-    if (!entry) {
-      // First row for this customer = newest policy (desc order).
-      let annivOffset = 999;
-      if (p.coverage_end_date) {
-        const end = new Date(p.coverage_end_date);
-        // Distance to the next anniversary of expiry, wrapping past year-end.
-        annivOffset = (dayOfYear(end.getMonth(), end.getDate()) - todayDOY + 366) % 366;
-      }
-      entry = {
-        customer,
-        years: new Set<number>(),
-        latestYear: y,
-        active: false,
-        notRenewed: false,
-        renewed: false,
-        totalPremium: 0,
-        count: 0,
-        lastCategory: p.category?.name ?? "-",
-        lastInsurer: p.insurance_company ?? "-",
-        lastPremium: Number(p.net_premium ?? 0),
-        lastCoverageEnd: p.coverage_end_date,
-        annivOffset,
-        notRenewedReason: null,
-      };
-      byCustomer.set(customer.id, entry);
-    }
-    entry.years.add(y);
-    entry.latestYear = Math.max(entry.latestYear, y);
-    entry.active = entry.active || isActive;
-    entry.notRenewed = entry.notRenewed || p.renewal_outcome === "not_renewed";
-    entry.renewed = entry.renewed || p.renewal_outcome === "renewed";
-    // Keep the reason from the newest not-renewed policy seen.
-    if (!entry.notRenewedReason && p.renewal_outcome === "not_renewed" && p.not_renewed_reason) {
-      entry.notRenewedReason = p.not_renewed_reason;
-    }
-    entry.totalPremium += Number(p.net_premium ?? 0);
-    entry.count += 1;
-  }
-
-  let allRows = [...byCustomer.values()];
-  // Status filter — "lapsed" (ขาดการต่ออายุ) is the win-back call list.
-  if (status === "lapsed") allRows = allRows.filter((r) => !r.active);
-  else if (status === "active") allRows = allRows.filter((r) => r.active);
-  else if (status === "not_renewed") allRows = allRows.filter((r) => r.notRenewed);
-  else if (status === "renewed") allRows = allRows.filter((r) => r.renewed);
-
-  const cmp: Record<SortKey, (a: CustomerAgg, b: CustomerAgg) => number> = {
-    renewal: (a, b) => a.annivOffset - b.annivOffset,
-    latest: (a, b) => a.latestYear - b.latestYear,
-    premium: (a, b) => a.totalPremium - b.totalPremium,
-    years: (a, b) => a.years.size - b.years.size,
-    name: (a, b) => a.customer.name.localeCompare(b.customer.name, "th"),
-  };
-  allRows.sort((a, b) => (desc ? -1 : 1) * cmp[sortKey](a, b));
-
-  const total = allRows.length;
-  const rows = allRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const yearOptions = [...new Set(policies.map((p) => new Date(p.closed_date).getFullYear()))].sort((a, b) => b - a);
-
-  const statusLabel = (r: CustomerAgg) =>
-    r.notRenewed ? "ไม่ต่อ (ทำเครื่องหมาย)" : r.active ? "Active" : "ขาดการต่ออายุ";
-  // dd/mm of the latest expiry — year is irrelevant to the renewal cycle.
-  const dayMonth = (s: string | null) => {
-    if (!s) return "-";
-    const d = new Date(s);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-  };
-
-  const exportRows = allRows.map((r) => ({
-    ลูกค้า: r.customer.name,
-    เบอร์โทร: r.customer.phone,
-    ประเภทล่าสุด: r.lastCategory,
-    หมดอายุ_วันเดือน: dayMonth(r.lastCoverageEnd),
-    ปีที่ซื้อล่าสุด: r.latestYear,
-    จำนวนปีที่ซื้อ: r.years.size,
-    บริษัทประกันหลังสุด: r.lastInsurer,
-    เบี้ยหลังสุด: r.lastPremium,
-    สถานะ: statusLabel(r),
-    เหตุผลไม่ต่อ: r.notRenewedReason ?? "",
-  }));
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: currentYear - 2017 }, (_, i) => currentYear - i);
 
   const SortHeader = ({ label, col }: { label: string; col: SortKey }) => {
     const sp = new URLSearchParams();
@@ -219,14 +122,7 @@ export default async function HistoryPage({
             {status === "lapsed" ? " · เฉพาะที่ขาดต่ออายุ" : status === "active" ? " · เฉพาะ Active" : status === "renewed" ? " · เฉพาะที่ต่อแล้ว" : status === "not_renewed" ? " · เฉพาะที่ทำเครื่องหมายไม่ต่อ" : ""}
           </p>
         </div>
-        {canExport && (
-          <ExportButton
-            rows={exportRows}
-            filename="win-back"
-            exportType="win-back"
-            filterNote={[year && `ปี ${year}`, category_id && "กรองประเภท", status].filter(Boolean).join(", ") || undefined}
-          />
-        )}
+        {canExport && <LazyExportButton filters={{ status, year, category_id }} />}
       </div>
       <p className="mb-4 text-xs text-slate-400">
         รายชื่อลูกค้าที่เคยซื้อประกัน — ใช้โทรกลับเสนอขายลูกค้าเก่า (กรอง &quot;ขาดต่ออายุ&quot; เพื่อดูเฉพาะที่ยังไม่ต่อ) ·
@@ -242,7 +138,7 @@ export default async function HistoryPage({
           <option value="not_renewed">ทำเครื่องหมาย &quot;ไม่ต่อ&quot;</option>
         </select>
         <select name="year" defaultValue={year ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
-          <option value="">ทุกปี</option>
+          <option value="">ทุกปี (ปีที่ซื้อล่าสุด)</option>
           {yearOptions.map((y) => (
             <option key={y} value={y}>
               {y}
@@ -254,7 +150,7 @@ export default async function HistoryPage({
           defaultValue={category_id ?? ""}
           className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
         >
-          <option value="">ทุกประเภท</option>
+          <option value="">ทุกประเภท (ล่าสุด)</option>
           {categories?.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -279,43 +175,41 @@ export default async function HistoryPage({
               <th className="px-4 py-3">บ.ประกันหลังสุด</th>
               <th className="px-4 py-3">เบี้ยหลังสุด</th>
               <th className="px-4 py-3">สถานะ</th>
-              <th className="px-4 py-3">เหตุผลไม่ต่อ</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((r) => (
-              <tr key={r.customer.id} className="hover:bg-slate-50">
+              <tr key={r.customer_id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
-                  <Link href={`/customers/${r.customer.id}`} className="font-medium text-slate-900 hover:underline">
-                    {r.customer.name}
+                  <Link href={`/customers/${r.customer_id}`} className="font-medium text-slate-900 hover:underline">
+                    {r.name}
                   </Link>
                 </td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-600">{r.customer.phone ?? "-"}</td>
-                <td className="px-4 py-3 text-slate-600">{r.lastCategory}</td>
-                <td className="px-4 py-3 font-mono text-slate-600">{dayMonth(r.lastCoverageEnd)}</td>
-                <td className="px-4 py-3 text-slate-600">{r.latestYear}</td>
-                <td className="px-4 py-3 text-slate-600">{r.years.size}</td>
-                <td className="px-4 py-3 text-slate-600">{r.lastInsurer}</td>
-                <td className="px-4 py-3 font-mono text-slate-600">{r.lastPremium.toLocaleString()}</td>
+                <td className="px-4 py-3 font-mono text-xs text-slate-600">{r.phone ?? "-"}</td>
+                <td className="px-4 py-3 text-slate-600">{r.last_category ?? "-"}</td>
+                <td className="px-4 py-3 font-mono text-slate-600">{dayMonth(r.last_coverage_end)}</td>
+                <td className="px-4 py-3 text-slate-600">{r.latest_year ?? "-"}</td>
+                <td className="px-4 py-3 text-slate-600">{r.years_count ?? "-"}</td>
+                <td className="px-4 py-3 text-slate-600">{r.last_insurer ?? "-"}</td>
+                <td className="px-4 py-3 font-mono text-slate-600">{Number(r.last_premium ?? 0).toLocaleString()}</td>
                 <td className="px-4 py-3">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      r.notRenewed
+                      r.not_renewed
                         ? "bg-rose-100 text-rose-700"
                         : r.active
                           ? "bg-emerald-100 text-emerald-700"
                           : "bg-amber-100 text-amber-700"
                     }`}
                   >
-                    {r.notRenewed ? "ไม่ต่อ" : r.active ? "Active" : "ขาดต่ออายุ"}
+                    {r.not_renewed ? "ไม่ต่อ" : r.active ? "Active" : "ขาดต่ออายุ"}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-xs text-slate-500">{r.notRenewedReason ?? "-"}</td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
                   ไม่มีข้อมูล
                 </td>
               </tr>
