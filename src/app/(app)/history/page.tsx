@@ -23,6 +23,7 @@ type CustomerAgg = {
   latestYear: number;
   active: boolean;
   notRenewed: boolean;
+  renewed: boolean;
   totalPremium: number;
   count: number;
   // From the newest policy (rows arrive ordered by closed_date desc, so the
@@ -121,6 +122,7 @@ export default async function HistoryPage({
         latestYear: y,
         active: false,
         notRenewed: false,
+        renewed: false,
         totalPremium: 0,
         count: 0,
         lastCategory: p.category?.name ?? "-",
@@ -136,6 +138,7 @@ export default async function HistoryPage({
     entry.latestYear = Math.max(entry.latestYear, y);
     entry.active = entry.active || isActive;
     entry.notRenewed = entry.notRenewed || p.renewal_outcome === "not_renewed";
+    entry.renewed = entry.renewed || p.renewal_outcome === "renewed";
     // Keep the reason from the newest not-renewed policy seen.
     if (!entry.notRenewedReason && p.renewal_outcome === "not_renewed" && p.not_renewed_reason) {
       entry.notRenewedReason = p.not_renewed_reason;
@@ -149,6 +152,7 @@ export default async function HistoryPage({
   if (status === "lapsed") allRows = allRows.filter((r) => !r.active);
   else if (status === "active") allRows = allRows.filter((r) => r.active);
   else if (status === "not_renewed") allRows = allRows.filter((r) => r.notRenewed);
+  else if (status === "renewed") allRows = allRows.filter((r) => r.renewed);
 
   const cmp: Record<SortKey, (a: CustomerAgg, b: CustomerAgg) => number> = {
     renewal: (a, b) => a.annivOffset - b.annivOffset,
@@ -212,7 +216,7 @@ export default async function HistoryPage({
           <h1 className="text-lg font-semibold text-slate-900">ลูกค้าเก่า / โทรกลับ (Win-back)</h1>
           <p className="text-xs text-slate-500">
             {total.toLocaleString()} ลูกค้า
-            {status === "lapsed" ? " · เฉพาะที่ขาดต่ออายุ" : status === "active" ? " · เฉพาะ Active" : status === "not_renewed" ? " · เฉพาะที่ทำเครื่องหมายไม่ต่อ" : ""}
+            {status === "lapsed" ? " · เฉพาะที่ขาดต่ออายุ" : status === "active" ? " · เฉพาะ Active" : status === "renewed" ? " · เฉพาะที่ต่อแล้ว" : status === "not_renewed" ? " · เฉพาะที่ทำเครื่องหมายไม่ต่อ" : ""}
           </p>
         </div>
         {canExport && (
@@ -234,6 +238,7 @@ export default async function HistoryPage({
           <option value="">สถานะ: ทั้งหมด</option>
           <option value="lapsed">ขาดต่ออายุ (ควรโทรกลับ)</option>
           <option value="active">Active (ยังมีผลอยู่)</option>
+          <option value="renewed">ต่อแล้ว (renewed)</option>
           <option value="not_renewed">ทำเครื่องหมาย &quot;ไม่ต่อ&quot;</option>
         </select>
         <select name="year" defaultValue={year ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">

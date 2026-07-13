@@ -1,6 +1,33 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
+import { useFormStatus } from "react-dom";
+
+// A submit button that disables itself while its form's action is running, so
+// a slow Server Action can't be fired twice by an impatient double-click
+// (which had been creating duplicate renewal policies). Must live inside a
+// <form> (e.g. ActionForm).
+export function SubmitButton({
+  children,
+  className,
+  pendingLabel,
+}: {
+  children: ReactNode;
+  className?: string;
+  pendingLabel?: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      className={`${className ?? ""} ${pending ? "cursor-not-allowed opacity-60" : ""}`}
+    >
+      {pending ? pendingLabel ?? "กำลังดำเนินการ…" : children}
+    </button>
+  );
+}
 
 // Wraps a <form> whose action is a Server Action returning { error?: string }
 // (never throwing — Next.js redacts thrown Server Action error messages in

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { setDealStatus, verifyPayment, setRenewalOutcome, renewPolicy } from "../actions";
 import { PolicyEditForm } from "./edit-form";
 import { PaymentReportForm } from "./payment-report-form";
-import { ActionForm } from "@/components/ActionForm";
+import { ActionForm, SubmitButton } from "@/components/ActionForm";
 
 const DEAL_STATUS_LABEL: Record<string, string> = {
   pending: "กำลังติดตาม",
@@ -122,17 +122,46 @@ export default async function PolicyDetailPage({
               <span className="text-xs text-slate-500">เหตุผล: {policy.not_renewed_reason}</span>
             )}
           </div>
-          {isOwnerOrManager && (
+          {isOwnerOrManager && policy.renewal_outcome === "renewed" && (
+            // Already renewed — do NOT show the renew button again (that was
+            // how repeated clicks created duplicate policies). Confirm the
+            // state clearly and point to the customer's policy list instead.
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-sm font-semibold text-emerald-800">✓ ต่ออายุแล้ว</p>
+              <p className="mt-0.5 text-xs text-emerald-700">
+                สร้างกรมธรรม์ปีใหม่เรียบร้อย — ดู/แก้ไขได้ที่รายการกรมธรรม์ของลูกค้า
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/customers/${customer.id}`}
+                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                >
+                  ดูกรมธรรม์ทั้งหมดของลูกค้า →
+                </Link>
+                <ActionForm action={markRenewalPending} confirmMessage="ยกเลิกสถานะ 'ต่อแล้ว' ของกรมธรรม์นี้? (ไม่ได้ลบกรมธรรม์ปีใหม่ที่สร้างไปแล้ว)">
+                  <SubmitButton className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
+                    ยกเลิกสถานะต่อแล้ว
+                  </SubmitButton>
+                </ActionForm>
+              </div>
+            </div>
+          )}
+
+          {isOwnerOrManager && policy.renewal_outcome !== "renewed" && (
             <div className="space-y-3">
-              {/* Primary path: renewal = a new year's policy. */}
-              <ActionForm action={renew}>
-                <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+              {/* Primary path: renewal = a new year's policy. Confirm + a
+                  pending-disabled button prevent accidental duplicates. */}
+              <ActionForm action={renew} confirmMessage="ต่ออายุกรมธรรม์นี้? ระบบจะสร้างกรมธรรม์ปีใหม่และปิด Win ทันที (กดครั้งเดียว)">
+                <SubmitButton
+                  pendingLabel="กำลังสร้างกรมธรรม์ปีใหม่…"
+                  className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                >
                   ต่ออายุ (สร้างกรมธรรม์ปีใหม่)
-                </button>
+                </SubmitButton>
                 <p className="mt-1 text-xs text-slate-400">
                   สร้างกรมธรรม์ปีใหม่และ<strong>ปิด Win ทันที</strong> (ยอดขึ้นเดือนนี้) ก๊อปปี้ข้อมูลเดิม +
                   เลื่อนวันคุ้มครอง +1 ปี — แก้ประเภท/บริษัท/เบี้ยได้ในหน้าถัดไป · กรมธรรม์เก่าถูกทำเครื่องหมาย
-                  &quot;ต่อแล้ว&quot; อัตโนมัติ
+                  &quot;ต่อแล้ว&quot; อัตโนมัติ · <strong>กดครั้งเดียวพอ</strong>
                 </p>
               </ActionForm>
 
@@ -154,20 +183,20 @@ export default async function PolicyDetailPage({
                       <option value="ลูกค้าไม่สะดวกต่อ" />
                       <option value="เคลมยาก / ไม่พอใจบริการ" />
                     </datalist>
-                    <button className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
+                    <SubmitButton className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
                       ไม่ต่อ
-                    </button>
+                    </SubmitButton>
                   </div>
                 </ActionForm>
                 <ActionForm action={markRenewed}>
-                  <button className="rounded-md border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50">
+                  <SubmitButton className="rounded-md border border-emerald-300 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50">
                     ต่อแล้ว (ไม่สร้างใหม่)
-                  </button>
+                  </SubmitButton>
                 </ActionForm>
                 <ActionForm action={markRenewalPending}>
-                  <button className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
+                  <SubmitButton className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
                     ล้าง (รอติดตาม)
-                  </button>
+                  </SubmitButton>
                 </ActionForm>
               </div>
               <p className="text-xs text-slate-400">
