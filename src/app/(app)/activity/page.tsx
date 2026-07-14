@@ -16,6 +16,7 @@ const PAGE_SIZE = 50;
 // Colour + short label per action for the badge. summary already carries the
 // full human text, so this is just a quick visual tag.
 const ACTION_META: Record<string, { label: string; cls: string }> = {
+  customer_created: { label: "เพิ่มลูกค้า", cls: "bg-sky-100 text-sky-700" },
   policy_created: { label: "เพิ่มกรมธรรม์", cls: "bg-sky-100 text-sky-700" },
   deal_won: { label: "ปิด Win", cls: "bg-emerald-100 text-emerald-700" },
   deal_lost: { label: "ปิด Lost", cls: "bg-rose-100 text-rose-700" },
