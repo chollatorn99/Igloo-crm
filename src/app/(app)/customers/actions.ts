@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/fetchAll";
 import { authorizeAndLogExport } from "@/app/(app)/export-actions";
+import { logActivity } from "@/lib/activity";
 
 type CustomerExportRow = {
   name: string;
@@ -76,6 +77,13 @@ export async function createCustomer(formData: FormData): Promise<{ error?: stri
     .single();
 
   if (error) return { error: error.message };
+
+  await logActivity(supabase, {
+    action: "customer_created",
+    summary: `เพิ่มลูกค้าใหม่: ${name}`,
+    entityId: data.id,
+    customerId: data.id,
+  });
 
   redirect(`/customers/${data.id}`);
 }
