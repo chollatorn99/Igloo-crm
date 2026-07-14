@@ -56,9 +56,10 @@ export default async function HistoryPage({
     sort?: string;
     dir?: string;
     page?: string;
+    q?: string;
   }>;
 }) {
-  const { year, category_id, status, sort, dir, page: pageParam } = await searchParams;
+  const { year, category_id, status, sort, dir, page: pageParam, q } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const sortKey: SortKey = (["renewal", "latest", "premium", "years", "name"] as const).includes(sort as SortKey)
     ? (sort as SortKey)
@@ -84,6 +85,7 @@ export default async function HistoryPage({
   else if (status === "not_renewed") query = query.eq("not_renewed", true);
   if (year) query = query.eq("latest_year", Number(year));
   if (category_id) query = query.eq("last_category_id", category_id);
+  if (q?.trim()) query = query.ilike("name", `%${q.trim().replace(/[%,()]/g, "")}%`);
   query = query.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
   const { data, count } = await query;
@@ -98,6 +100,7 @@ export default async function HistoryPage({
     if (year) sp.set("year", year);
     if (category_id) sp.set("category_id", category_id);
     if (status) sp.set("status", status);
+    if (q) sp.set("q", q);
     const active = sortKey === col;
     sp.set("sort", col);
     sp.set("dir", active ? (dirEff === "asc" ? "desc" : "asc") : DEFAULT_DIR[col]);
@@ -122,7 +125,7 @@ export default async function HistoryPage({
             {status === "lapsed" ? " · เฉพาะที่ขาดต่ออายุ" : status === "active" ? " · เฉพาะ Active" : status === "renewed" ? " · เฉพาะที่ต่อแล้ว" : status === "not_renewed" ? " · เฉพาะที่ทำเครื่องหมายไม่ต่อ" : ""}
           </p>
         </div>
-        {canExport && <LazyExportButton filters={{ status, year, category_id }} />}
+        {canExport && <LazyExportButton filters={{ status, year, category_id, q }} />}
       </div>
       <p className="mb-4 text-xs text-slate-400">
         รายชื่อลูกค้าที่เคยซื้อประกัน — ใช้โทรกลับเสนอขายลูกค้าเก่า (กรอง &quot;ขาดต่ออายุ&quot; เพื่อดูเฉพาะที่ยังไม่ต่อ) ·
@@ -130,6 +133,12 @@ export default async function HistoryPage({
       </p>
 
       <form className="mb-4 flex flex-wrap gap-2">
+        <input
+          name="q"
+          defaultValue={q ?? ""}
+          placeholder="ค้นหาชื่อลูกค้า"
+          className="w-48 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-500"
+        />
         <select name="status" defaultValue={status ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
           <option value="">สถานะ: ทั้งหมด</option>
           <option value="lapsed">ขาดต่ออายุ (ควรโทรกลับ)</option>
@@ -218,7 +227,7 @@ export default async function HistoryPage({
         </table>
       </div>
 
-      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ year, category_id, status, sort, dir }} />
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ year, category_id, status, sort, dir, q }} />
     </div>
   );
 }

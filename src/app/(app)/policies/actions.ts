@@ -85,9 +85,25 @@ export async function updatePolicyDetails(policyId: string, formData: FormData):
 export async function deletePolicy(policyId: string): Promise<ActionResult> {
   const supabase = await createClient();
 
-  const { data: pol } = await supabase.from("policies").select("customer_id").eq("id", policyId).single();
+  const { data: pol } = await supabase
+    .from("policies")
+    .select("customer_id, renewed_from_policy_id")
+    .eq("id", policyId)
+    .single();
   const { error } = await supabase.from("policies").delete().eq("id", policyId);
   if (error) return { error: error.message };
+
+  // If this policy was a renewal, put the one it renewed back into the
+  // reminder list — otherwise it stays flagged "ต่อแล้ว" and disappears from
+  // /renewals even though there's no longer a current-year policy.
+  if (pol?.renewed_from_policy_id) {
+    await supabase.rpc("set_renewal_outcome", {
+      p_policy_id: pol.renewed_from_policy_id,
+      p_outcome: "pending",
+      p_reason: null,
+    });
+    revalidatePath("/renewals");
+  }
 
   const customerId = pol?.customer_id;
   if (customerId) revalidatePath(`/customers/${customerId}`);
@@ -224,6 +240,7 @@ export async function renewPolicy(policyId: string): Promise<ActionResult> {
       agent_id: old.agent_id,
       agent_commission_rate: old.agent_commission_rate,
       customer_discount_amount: old.customer_discount_amount ?? 0,
+      renewed_from_policy_id: policyId,
       notes: `ต่ออายุจากกรมธรรม์ปี ${oldYear} — แก้ไขประเภท/บริษัท/เบี้ยได้ตามจริง`,
       // Closed the moment "ต่ออายุ" is pressed. The transitions trigger is
       // UPDATE-only, so on this fresh INSERT we set closed_date (= today, the
