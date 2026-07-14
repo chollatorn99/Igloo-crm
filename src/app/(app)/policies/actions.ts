@@ -3,6 +3,27 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { logActivity } from "@/lib/activity";
+
+// Readable "ลูกค้า (ประเภท)" label + premium for an activity summary.
+async function policyLabel(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  policyId: string,
+): Promise<{ name: string; category: string; premium: number; customerId: string | null }> {
+  const { data } = await supabase
+    .from("policies")
+    .select("net_premium, customer:customers(id, name), category:policy_categories(name)")
+    .eq("id", policyId)
+    .single();
+  const cust = data?.customer as unknown as { id: string; name: string } | null;
+  const cat = data?.category as unknown as { name: string } | null;
+  return {
+    name: cust?.name ?? "-",
+    category: cat?.name ?? "-",
+    premium: Number(data?.net_premium ?? 0),
+    customerId: cust?.id ?? null,
+  };
+}
 
 // Next.js redacts thrown Server Action errors in production builds down to
 // a generic message — only visible with dev-mode testing. Every action
@@ -45,6 +66,14 @@ export async function createPolicy(customerId: string, formData: FormData): Prom
     .single();
 
   if (error) return { error: error.message };
+
+  const lbl = await policyLabel(supabase, data.id);
+  await logActivity(supabase, {
+    action: "policy_created",
+    summary: `เพิ่มกรมธรรม์: ${lbl.name} (${lbl.category})`,
+    entityId: data.id,
+    customerId: lbl.customerId,
+  });
 
   redirect(`/policies/${data.id}`);
 }
@@ -90,8 +119,17 @@ export async function deletePolicy(policyId: string): Promise<ActionResult> {
     .select("customer_id, renewed_from_policy_id")
     .eq("id", policyId)
     .single();
+  // Capture a readable label BEFORE deleting (the row is gone afterwards).
+  const lbl = await policyLabel(supabase, policyId);
   const { error } = await supabase.from("policies").delete().eq("id", policyId);
   if (error) return { error: error.message };
+
+  await logActivity(supabase, {
+    action: "policy_deleted",
+    summary: `ลบกรมธรรม์: ${lbl.name} (${lbl.category}) เบี้ย ${lbl.premium.toLocaleString()}`,
+    entityId: policyId,
+    customerId: pol?.customer_id ?? null,
+  });
 
   // If this policy was a renewal, put the one it renewed back into the
   // reminder list — otherwise it stays flagged "ต่อแล้ว" and disappears from
@@ -134,6 +172,13 @@ export async function setDealStatus(policyId: string, status: "win" | "lost"): P
   const { error } = await supabase.from("policies").update(update).eq("id", policyId);
 
   if (error) return { error: error.message };
+  const lbl = await policyLabel(supabase, policyId);
+  await logActivity(supabase, {
+    action: status === "win" ? "deal_won" : "deal_lost",
+    summary: `ปิดดีล ${status === "win" ? "Win" : "Lost"}: ${lbl.name} (${lbl.category})${status === "win" ? ` เบี้ย ${lbl.premium.toLocaleString()}` : ""}`,
+    entityId: policyId,
+    customerId: lbl.customerId,
+  });
   revalidatePath(`/policies/${policyId}`);
   return {};
 }
@@ -159,6 +204,13 @@ export async function reportPaymentTransfer(policyId: string, formData: FormData
     .eq("id", policyId);
 
   if (error) return { error: error.message };
+  const lbl = await policyLabel(supabase, policyId);
+  await logActivity(supabase, {
+    action: "payment_reported",
+    summary: `แจ้งชำระเงิน: ${lbl.name} (${lbl.category})`,
+    entityId: policyId,
+    customerId: lbl.customerId,
+  });
   revalidatePath(`/policies/${policyId}`);
   return {};
 }
@@ -183,6 +235,13 @@ export async function verifyPayment(
     .eq("id", policyId);
 
   if (error) return { error: error.message };
+  const lbl = await policyLabel(supabase, policyId);
+  await logActivity(supabase, {
+    action: decision === "verified" ? "payment_verified" : "payment_rejected",
+    summary: `${decision === "verified" ? "ยืนยันการชำระเงิน" : "สลิปไม่ผ่าน"}: ${lbl.name} (${lbl.category})`,
+    entityId: policyId,
+    customerId: lbl.customerId,
+  });
   revalidatePath(`/policies/${policyId}`);
   return {};
 }
@@ -265,6 +324,14 @@ export async function renewPolicy(policyId: string): Promise<ActionResult> {
   // Non-fatal: the new policy already exists; surface but don't block.
   if (rpcErr) return { error: `สร้างกรมธรรม์ใหม่แล้ว แต่ติดธง 'ต่อแล้ว' ไม่สำเร็จ: ${rpcErr.message}` };
 
+  const lbl = await policyLabel(supabase, created.id);
+  await logActivity(supabase, {
+    action: "renewed",
+    summary: `ต่ออายุ (สร้างกรมธรรม์ปีใหม่): ${lbl.name} (${lbl.category}) เบี้ย ${lbl.premium.toLocaleString()}`,
+    entityId: created.id,
+    customerId: lbl.customerId,
+  });
+
   revalidatePath("/renewals");
   redirect(`/policies/${created.id}`);
 }
@@ -287,6 +354,14 @@ export async function setRenewalOutcome(
   });
 
   if (error) return { error: error.message };
+  const lbl = await policyLabel(supabase, policyId);
+  const verb = outcome === "renewed" ? "ต่อแล้ว (ไม่สร้างใหม่)" : outcome === "not_renewed" ? `ไม่ต่อ${reason ? ` — ${reason}` : ""}` : "ล้างสถานะต่ออายุ";
+  await logActivity(supabase, {
+    action: `renewal_${outcome}`,
+    summary: `${verb}: ${lbl.name} (${lbl.category})`,
+    entityId: policyId,
+    customerId: lbl.customerId,
+  });
   revalidatePath(`/policies/${policyId}`);
   revalidatePath("/renewals");
   return {};

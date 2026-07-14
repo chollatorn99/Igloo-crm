@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { logActivity } from "@/lib/activity";
 
 type ActionResult = { error?: string };
 
@@ -30,6 +31,14 @@ export async function addFollowUpNote(customerId: string, formData: FormData): P
     .from("customers")
     .update({ call_count: (customer?.call_count ?? 0) + 1, last_call_result: note_text.slice(0, 120) })
     .eq("id", customerId);
+
+  const { data: c } = await supabase.from("customers").select("name").eq("id", customerId).single();
+  await logActivity(supabase, {
+    action: "call_logged",
+    summary: `บันทึกการติดตาม: ${c?.name ?? "-"} — ${note_text.slice(0, 60)}`,
+    entityId: customerId,
+    customerId,
+  });
 
   revalidatePath(`/customers/${customerId}`);
   return {};
