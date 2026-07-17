@@ -12,6 +12,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
     { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
     { label: "ประวัติลูกค้าเก่า", href: "/history" },
+    { label: "Agent (นายหน้า)", href: "/agents" },
     { label: "บันทึกกิจกรรม", href: "/activity" },
     { label: "Settings", href: "/settings" },
   ],
@@ -20,6 +21,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: "ลูกค้าของฉัน", href: "/customers" },
     { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
     { label: "ประวัติลูกค้าเก่า", href: "/history" },
+    { label: "Agent (นายหน้า)", href: "/agents" },
     { label: "บันทึกกิจกรรมของฉัน", href: "/activity" },
   ],
   accounting: [
