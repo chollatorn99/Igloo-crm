@@ -95,6 +95,7 @@ export async function updatePolicyDetails(policyId: string, formData: FormData):
       stamp_duty: numOrNull(formData.get("stamp_duty")) ?? 0,
       vat: numOrNull(formData.get("vat")) ?? 0,
       total_collectible: numOrNull(formData.get("total_collectible")),
+      withholding_tax_1pct: formData.get("withholding_tax_1pct") === "on",
       company_commission_rate: numOrNull(formData.get("company_commission_rate")),
       agent_id: strOrNull(formData.get("agent_id")),
       agent_commission_rate: numOrNull(formData.get("agent_commission_rate")),

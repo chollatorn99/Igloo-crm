@@ -271,14 +271,36 @@ export default async function PolicyDetailPage({
           )}
 
           {isOwnerOrManager && (
-            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-100 pt-3 text-sm">
-              {/* Agent commission is what the freelancer is owed — the
-                  owning salesperson needs to see it. Company commission and
-                  net-to-Igloo are company revenue, so manager-only. */}
-              <div>
-                <p className="text-xs text-slate-400">ค่าคอม Agent</p>
-                <p className="font-mono">{Number(policy.agent_commission_amount ?? 0).toLocaleString()}</p>
-              </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-sm md:grid-cols-3">
+              {/* หัก ณ ที่จ่าย 1% — only when a company customer requested it. */}
+              {policy.withholding_tax_1pct && (
+                <div>
+                  <p className="text-xs text-slate-400">หัก ณ ที่จ่าย 1% (ลูกค้าบริษัท)</p>
+                  <p className="font-mono">{Number(policy.withholding_tax_amount ?? 0).toLocaleString()}</p>
+                </div>
+              )}
+
+              {/* Agent commission — gross, 3% WHT, and net actually paid to the
+                  agent. Visible to the owning salesperson (and manager). */}
+              {Number(policy.agent_commission_amount ?? 0) > 0 && (
+                <>
+                  <div>
+                    <p className="text-xs text-slate-400">ค่าคอม Agent (ก่อนหัก)</p>
+                    <p className="font-mono">{Number(policy.agent_commission_amount ?? 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">หัก ณ ที่จ่าย 3% (Agent)</p>
+                    <p className="font-mono">{Number(policy.agent_wht_amount ?? 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">คงเหลือจ่าย Agent</p>
+                    <p className="font-mono font-semibold">
+                      {(Number(policy.agent_commission_amount ?? 0) - Number(policy.agent_wht_amount ?? 0)).toLocaleString()}
+                    </p>
+                  </div>
+                </>
+              )}
+
               {role === "manager" && (
                 <>
                   <div>

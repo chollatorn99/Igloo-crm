@@ -14,6 +14,7 @@ type Policy = {
   stamp_duty: number | null;
   vat: number | null;
   total_collectible: number | null;
+  withholding_tax_1pct: boolean | null;
   company_commission_rate: number | null;
   agent: { id: string } | null;
   agent_commission_rate: number | null;
@@ -149,6 +150,16 @@ export function PolicyEditForm({
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
       </div>
+
+      <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          name="withholding_tax_1pct"
+          defaultChecked={policy.withholding_tax_1pct ?? false}
+          className="h-4 w-4"
+        />
+        ลูกค้าบริษัทขอหัก ณ ที่จ่าย 1% (คำนวณจากเบี้ยสุทธิให้อัตโนมัติ)
+      </label>
 
       <div className="grid grid-cols-2 gap-3">
         {/* Sales enters the % the insurer gives — but the resulting baht
