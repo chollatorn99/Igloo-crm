@@ -102,6 +102,40 @@ export default async function PolicyDetailPage({
         </span>
       </div>
 
+      {/* Premium breakdown — net + stamp duty + VAT summed to the grand total
+          (total_premium is a generated column in the DB). */}
+      {policy.net_premium != null && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+          <p className="mb-2 text-sm font-semibold text-slate-700">ยอดเบี้ยประกัน</p>
+          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+            <div>
+              <p className="text-xs text-slate-400">เบี้ยสุทธิ</p>
+              <p className="font-mono">{Number(policy.net_premium ?? 0).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">อากรแสตมป์</p>
+              <p className="font-mono">{Number(policy.stamp_duty ?? 0).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">VAT</p>
+              <p className="font-mono">{Number(policy.vat ?? 0).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500">รวมทั้งสิ้น</p>
+              <p className="font-mono font-semibold text-slate-900">
+                {Number(policy.total_premium ?? 0).toLocaleString()}
+              </p>
+            </div>
+          </div>
+          {policy.withholding_tax_1pct && (
+            <p className="mt-2 text-xs text-slate-500">
+              หัก ณ ที่จ่าย 1%: {Number(policy.withholding_tax_amount ?? 0).toLocaleString()} · ยอดรับสุทธิ{" "}
+              {(Number(policy.total_premium ?? 0) - Number(policy.withholding_tax_amount ?? 0)).toLocaleString()}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Renewal follow-up outcome — only meaningful for a won policy, kept
           separate from deal_status so revenue/history are never altered. */}
       {policy.deal_status === "win" && (
