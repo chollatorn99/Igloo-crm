@@ -77,7 +77,14 @@ export default async function DashboardHome({
   const [{ data: profiles }, notes, policies] = await Promise.all([
     supabase.from("profiles").select("id, full_name").in("role", ["sales", "manager"]).order("full_name"),
     fetchAll<NoteRow>((f, t) => {
-      let q = supabase.from("follow_up_notes").select("author_id, created_at").order("created_at").range(f, t);
+      // Count only real logged calls — exclude the one-off "[ยุบจากรายชื่อซ้ำ]"
+      // notes created by the customer-dedup step (they aren't phone calls).
+      let q = supabase
+        .from("follow_up_notes")
+        .select("author_id, created_at")
+        .not("note_text", "ilike", "[ยุบจากรายชื่อซ้ำ]%")
+        .order("created_at")
+        .range(f, t);
       if (from) q = q.gte("created_at", from);
       if (to) q = q.lte("created_at", `${to}T23:59:59`);
       return q as unknown as PromiseLike<{ data: NoteRow[] | null; error: { message: string } | null }>;
