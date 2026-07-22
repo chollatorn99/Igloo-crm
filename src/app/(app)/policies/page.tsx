@@ -21,9 +21,9 @@ const RENEWAL_LABEL: Record<string, string> = { pending: "รอติดตา�
 export default async function PoliciesListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category_id?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ category_id?: string; from?: string; to?: string; owner?: string }>;
 }) {
-  const { category_id, from, to } = await searchParams;
+  const { category_id, from, to, owner } = await searchParams;
   const supabase = await createClient();
 
   let categoryName = "";
@@ -31,17 +31,23 @@ export default async function PoliciesListPage({
     const { data } = await supabase.from("policy_categories").select("name").eq("id", category_id).single();
     categoryName = data?.name ?? "";
   }
+  let ownerName = "";
+  if (owner) {
+    const { data } = await supabase.from("profiles").select("full_name").eq("id", owner).single();
+    ownerName = data?.full_name ?? "";
+  }
 
   const rows = await fetchAll<Row>((f, t) => {
     let q = supabase
       .from("policies")
       .select(
-        "id, net_premium, closed_date, coverage_end_date, insurance_company, renewal_outcome, category:policy_categories(name), customer:customers(id, name)",
+        "id, net_premium, closed_date, coverage_end_date, insurance_company, renewal_outcome, category:policy_categories(name), customer:customers!inner(id, name, owner_id)",
       )
       .eq("deal_status", "win")
       .order("closed_date", { ascending: false })
       .range(f, t);
     if (category_id) q = q.eq("category_id", category_id);
+    if (owner) q = q.eq("customer.owner_id", owner);
     if (from) q = q.gte("closed_date", from);
     if (to) q = q.lte("closed_date", to);
     return q as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>;
@@ -58,7 +64,7 @@ export default async function PoliciesListPage({
         กรมธรรม์{categoryName ? ` ประเภท ${categoryName}` : ""}
       </h1>
       <p className="mb-6 text-xs text-slate-500">
-        {rows.length} รายการ{from && to ? ` · ${from} ถึง ${to}` : ""} · รวมเบี้ย {baht(total)} บาท
+        {rows.length} รายการ{ownerName ? ` · Sales: ${ownerName}` : ""}{from && to ? ` · ${from} ถึง ${to}` : ""} · รวมเบี้ย {baht(total)} บาท
       </p>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">

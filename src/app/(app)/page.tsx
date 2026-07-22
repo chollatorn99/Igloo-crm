@@ -63,7 +63,7 @@ function resolveRange(sp: { range?: string; from?: string; to?: string }) {
 export default async function DashboardHome({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string; sales?: string }>;
 }) {
   const sp = await searchParams;
   const { from, to, label } = resolveRange(sp);
@@ -113,26 +113,37 @@ export default async function DashboardHome({
 
   for (const n of notes) get(n.author_id).calls++;
 
-  const byCategory = new Map<string, { id: string | null; name: string; count: number; premium: number; commission: number }>();
   for (const p of policies) {
     const ownerId = p.customer?.owner_id;
     if (!ownerId) continue;
     const s = get(ownerId);
     if (p.deal_status === "win") {
       s.win++;
-      const premium = Number(p.net_premium ?? 0);
-      const commission = Number(p.company_commission_amount ?? 0);
-      s.premium += premium;
-      s.commission += commission;
-      const catName = p.category?.name ?? "ไม่ระบุ";
-      const c = byCategory.get(catName) ?? { id: p.category_id, name: catName, count: 0, premium: 0, commission: 0 };
-      c.count++;
-      c.premium += premium;
-      c.commission += commission;
-      byCategory.set(catName, c);
+      s.premium += Number(p.net_premium ?? 0);
+      s.commission += Number(p.company_commission_amount ?? 0);
     } else if (p.deal_status === "lost") {
       s.lost++;
     }
+  }
+
+  // Whose numbers the page shows: a manager can scope to one salesperson via
+  // ?sales=; a salesperson is always scoped to themselves; null = whole team.
+  const scopeId = isManager ? sp.sales || null : user!.id;
+
+  // Category breakdown, scoped to the selection.
+  const byCategory = new Map<string, { id: string | null; name: string; count: number; premium: number; commission: number }>();
+  for (const p of policies) {
+    if (p.deal_status !== "win") continue;
+    const ownerId = p.customer?.owner_id;
+    if (!ownerId || (scopeId && ownerId !== scopeId)) continue;
+    const premium = Number(p.net_premium ?? 0);
+    const commission = Number(p.company_commission_amount ?? 0);
+    const catName = p.category?.name ?? "ไม่ระบุ";
+    const c = byCategory.get(catName) ?? { id: p.category_id, name: catName, count: 0, premium: 0, commission: 0 };
+    c.count++;
+    c.premium += premium;
+    c.commission += commission;
+    byCategory.set(catName, c);
   }
 
   const totals = [...byUser.values()].reduce((acc, s) => {
@@ -140,8 +151,8 @@ export default async function DashboardHome({
     return acc;
   }, blankStat());
 
-  const mine = get(user!.id);
-  const scope = isManager ? totals : mine;
+  const scope = scopeId ? byUser.get(scopeId) ?? blankStat() : totals;
+  const selectedName = scopeId ? profiles?.find((p) => p.id === scopeId)?.full_name ?? null : null;
   const winRate = (s: Stat) => (s.win + s.lost === 0 ? 0 : Math.round((s.win / (s.win + s.lost)) * 100));
 
   const categories = [...byCategory.values()].sort((a, b) => b.premium - a.premium);
@@ -149,14 +160,26 @@ export default async function DashboardHome({
   const sortedNames = [...byCategory.keys()].sort();
   const colorFor = (name: string) => PALETTE[sortedNames.indexOf(name) % PALETTE.length];
 
-  // Drill-down link to the policy list for a category within the current window.
+  // Drill-down link to the policy list for a category within the current
+  // window — carries the selected salesperson through so the list matches.
   const catHref = (categoryId: string | null) => {
     const p = new URLSearchParams();
     if (categoryId) p.set("category_id", categoryId);
     if (from) p.set("from", from);
     if (to) p.set("to", to);
+    if (scopeId) p.set("owner", scopeId);
     return `/policies?${p.toString()}`;
   };
+
+  // Preserve the current period on links; sales links add/replace ?sales=.
+  const periodQS = new URLSearchParams();
+  if (sp.range) periodQS.set("range", sp.range);
+  if (sp.from) periodQS.set("from", sp.from);
+  if (sp.to) periodQS.set("to", sp.to);
+  const periodStr = periodQS.toString();
+  const salesHref = (id: string) => `/?${periodStr ? periodStr + "&" : ""}sales=${id}`;
+  const clearSalesHref = periodStr ? `/?${periodStr}` : "/";
+  const keepSales = isManager && sp.sales ? `&sales=${sp.sales}` : "";
 
   const presets = [
     { key: "month", label: "เดือนนี้" },
@@ -178,17 +201,23 @@ export default async function DashboardHome({
       <div className="mb-4">
         <h1 className="text-lg font-semibold text-slate-900">Performance Dashboard</h1>
         <p className="text-xs text-slate-500">
-          สวัสดี {profile?.full_name} · {isManager ? "ภาพรวมทั้งทีม" : "ผลงานของคุณ"} · ช่วง:{" "}
+          สวัสดี {profile?.full_name} ·{" "}
+          {isManager ? (selectedName ? `ดูของ: ${selectedName}` : "ภาพรวมทั้งทีม") : "ผลงานของคุณ"} · ช่วง:{" "}
           <span className="font-medium text-slate-700">{label}</span>
+          {isManager && selectedName && (
+            <Link href={clearSalesHref} className="ml-2 text-blue-600 hover:underline">
+              ← ดูทั้งทีม
+            </Link>
+          )}
         </p>
       </div>
 
       {/* Period selector */}
-      <div className="mb-6 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         {presets.map((p) => (
           <Link
             key={p.key}
-            href={`/?range=${p.key}`}
+            href={`/?range=${p.key}${keepSales}`}
             className={`rounded-full px-3 py-1.5 text-xs font-medium ${
               activeRange === p.key
                 ? "bg-slate-900 text-white"
@@ -200,6 +229,7 @@ export default async function DashboardHome({
         ))}
         <form className="flex items-center gap-1" action="/">
           <input type="hidden" name="range" value="custom" />
+          {isManager && sp.sales && <input type="hidden" name="sales" value={sp.sales} />}
           <input type="date" name="from" defaultValue={sp.from ?? from ?? ""} className="rounded-md border border-slate-300 px-2 py-1 text-xs" />
           <span className="text-xs text-slate-400">ถึง</span>
           <input type="date" name="to" defaultValue={sp.to ?? to ?? ""} className="rounded-md border border-slate-300 px-2 py-1 text-xs" />
@@ -208,6 +238,25 @@ export default async function DashboardHome({
           </button>
         </form>
       </div>
+
+      {/* Salesperson filter (manager) */}
+      {isManager && (
+        <form className="mb-6 flex items-center gap-2" action="/">
+          {sp.range && <input type="hidden" name="range" value={sp.range} />}
+          {sp.from && <input type="hidden" name="from" value={sp.from} />}
+          {sp.to && <input type="hidden" name="to" value={sp.to} />}
+          <span className="text-xs text-slate-400">ดูตาม Sales:</span>
+          <select name="sales" defaultValue={sp.sales ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+            <option value="">ทั้งทีม</option>
+            {profiles?.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.full_name}
+              </option>
+            ))}
+          </select>
+          <button className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800">ดู</button>
+        </form>
+      )}
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {/* Company commission = Igloo's revenue — manager-only. */}
@@ -270,8 +319,12 @@ export default async function DashboardHome({
                 {(profiles ?? []).map((p) => {
                   const s = byUser.get(p.id) ?? blankStat();
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-900">{p.full_name}</td>
+                    <tr key={p.id} className={`hover:bg-slate-50 ${scopeId === p.id ? "bg-blue-50" : ""}`}>
+                      <td className="px-4 py-3 font-medium">
+                        <Link href={salesHref(p.id)} className="text-blue-700 hover:underline">
+                          {p.full_name}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3">{s.calls}</td>
                       <td className="px-4 py-3 font-mono">{baht(s.premium)}</td>
                       <td className="px-4 py-3 font-mono text-emerald-700">{baht(s.commission)}</td>
