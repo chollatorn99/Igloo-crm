@@ -91,6 +91,8 @@ export async function updatePolicyDetails(policyId: string, formData: FormData):
       policy_detail: strOrNull(formData.get("policy_detail")),
       coverage_start_date: strOrNull(formData.get("coverage_start_date")),
       coverage_end_date: strOrNull(formData.get("coverage_end_date")),
+      // วันแจ้งงาน — the date the dashboard counts the sale by (not coverage).
+      closed_date: strOrNull(formData.get("closed_date")),
       net_premium: numOrNull(formData.get("net_premium")),
       stamp_duty: numOrNull(formData.get("stamp_duty")) ?? 0,
       vat: numOrNull(formData.get("vat")) ?? 0,
@@ -266,8 +268,13 @@ function addOneYear(dateStr: string | null): string | null {
 // dashboard immediately. Premium/insurer/ประเภท stay editable afterward via
 // the edit form (renewals often change terms). The old policy is flagged
 // renewed in the same step.
-export async function renewPolicy(policyId: string): Promise<ActionResult> {
+export async function renewPolicy(policyId: string, formData?: FormData): Promise<ActionResult> {
   const supabase = await createClient();
+
+  // วันแจ้งงาน chosen by sales drives the revenue date (closed_date) — the
+  // dashboard counts by this, not by coverage start. Default: today (Thai).
+  const reportDate =
+    strOrNull(formData?.get("report_date") ?? null) ?? new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
 
   const { data: old, error: readErr } = await supabase
     .from("policies")
@@ -306,7 +313,8 @@ export async function renewPolicy(policyId: string): Promise<ActionResult> {
       // UPDATE-only, so on this fresh INSERT we set closed_date (= today, the
       // revenue-reporting date) and payment_status ourselves.
       deal_status: "win",
-      closed_date: new Date().toISOString().slice(0, 10),
+      closed_date: reportDate,
+      reported_date: reportDate,
       payment_status: "awaiting_payment",
     })
     .select("id")

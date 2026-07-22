@@ -75,6 +75,7 @@ export default async function PolicyDetailPage({
   const markRenewalPending = setRenewalOutcome.bind(null, id, "pending");
   const renew = renewPolicy.bind(null, id);
   const removePolicy = deletePolicy.bind(null, id);
+  const todayStr = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10); // Thai today
 
   return (
     <div className="mx-auto max-w-2xl p-8">
@@ -186,7 +187,16 @@ export default async function PolicyDetailPage({
             <div className="space-y-3">
               {/* Primary path: renewal = a new year's policy. Confirm + a
                   pending-disabled button prevent accidental duplicates. */}
-              <ActionForm action={renew} confirmMessage="ต่ออายุกรมธรรม์นี้? ระบบจะสร้างกรมธรรม์ปีใหม่และปิด Win ทันที (กดครั้งเดียว)">
+              <ActionForm action={renew} confirmMessage="ต่ออายุกรมธรรม์นี้? ระบบจะสร้างกรมธรรม์ปีใหม่และปิด Win ตามวันแจ้งงานที่เลือก (กดครั้งเดียว)">
+                <div className="mb-2 flex items-center gap-2">
+                  <label className="text-xs font-medium text-slate-600">วันแจ้งงาน (วันนับยอด)</label>
+                  <input
+                    type="date"
+                    name="report_date"
+                    defaultValue={todayStr}
+                    className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                  />
+                </div>
                 <SubmitButton
                   pendingLabel="กำลังสร้างกรมธรรม์ปีใหม่…"
                   className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"

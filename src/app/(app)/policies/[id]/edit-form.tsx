@@ -10,6 +10,7 @@ type Policy = {
   policy_detail: string | null;
   coverage_start_date: string | null;
   coverage_end_date: string | null;
+  closed_date: string | null;
   net_premium: number | null;
   stamp_duty: number | null;
   vat: number | null;
@@ -105,6 +106,18 @@ export function PolicyEditForm({
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-medium text-slate-600">
+          วันแจ้งงาน (วันที่นับยอดขาย — ไม่ใช่วันคุ้มครอง)
+        </label>
+        <input
+          type="date"
+          name="closed_date"
+          defaultValue={policy.closed_date ?? ""}
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
       </div>
 
       <div className="grid grid-cols-3 gap-3">
