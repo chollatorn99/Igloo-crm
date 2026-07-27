@@ -28,6 +28,15 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: "หน้าหลัก (Dashboard)", href: "/" },
     { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
   ],
+  support: [
+    { label: "หน้าหลัก (Dashboard)", href: "/" },
+    { label: "ลูกค้า", href: "/customers" },
+    { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
+    { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
+    { label: "ประวัติลูกค้าเก่า", href: "/history" },
+    { label: "Agent (นายหน้า)", href: "/agents" },
+    { label: "บันทึกกิจกรรม", href: "/activity" },
+  ],
 };
 
 // Shared shell for every authenticated page — the sidebar (with a หน้าหลัก

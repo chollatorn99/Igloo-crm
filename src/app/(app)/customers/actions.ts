@@ -66,7 +66,14 @@ export async function createCustomer(formData: FormData): Promise<{ error?: stri
   const phone = String(formData.get("phone") ?? "").trim() || null;
   const customer_type = String(formData.get("customer_type") ?? "individual");
   const ownerIdInput = String(formData.get("owner_id") ?? "");
-  const owner_id = ownerIdInput || user.id;
+
+  // A support user records on behalf of the salesperson they assist, so new
+  // customers must be owned by that salesperson (not the support account) —
+  // otherwise the sale wouldn't count under the right person or even be
+  // visible to support.
+  const { data: me } = await supabase.from("profiles").select("role, supports_owner_id").eq("id", user.id).single();
+  const owner_id =
+    me?.role === "support" && me.supports_owner_id ? me.supports_owner_id : ownerIdInput || user.id;
 
   if (!name) return { error: "กรุณากรอกชื่อลูกค้า" };
 

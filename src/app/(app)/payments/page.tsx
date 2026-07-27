@@ -20,7 +20,7 @@ export default async function PaymentsQueuePage({
   const { data: { user } } = await supabase.auth.getUser();
   const { data: me } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
   const isManager = me?.role === "manager";
-  const canExport = me?.role !== "sales";
+  const canExport = me?.role === "manager" || me?.role === "accounting";
 
   // Only deals actually in the payment workflow — imported historical wins
   // have payment_status null and would otherwise flood this queue. This

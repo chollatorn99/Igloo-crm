@@ -26,7 +26,7 @@ export default async function CustomersPage({
 
   const { data: { user } } = await supabase.auth.getUser();
   const { data: me } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
-  const canExport = me?.role !== "sales";
+  const canExport = me?.role === "manager" || me?.role === "accounting";
 
   // One server-side page (50 rows) + an exact total for the pager — no more
   // loading all ~2000 rows into the DOM on every visit.

@@ -64,7 +64,9 @@ export default async function PolicyDetailPage({
 
   const role = profile?.role;
   const customer = policy.customer as unknown as { id: string; name: string; owner_id: string };
-  const isOwnerOrManager = role === "manager" || customer.owner_id === user!.id;
+  // Support only ever loads policies of the salesperson they assist (enforced
+  // by RLS), so role === "support" here already implies an allowed policy.
+  const isOwnerOrManager = role === "manager" || role === "support" || customer.owner_id === user!.id;
 
   const markWin = setDealStatus.bind(null, id, "win");
   const markLost = setDealStatus.bind(null, id, "lost");
@@ -292,7 +294,7 @@ export default async function PolicyDetailPage({
             <PaymentReportForm policyId={id} />
           )}
 
-          {policy.payment_status === "awaiting_verification" && (role === "accounting" || role === "manager") && (
+          {policy.payment_status === "awaiting_verification" && (role === "accounting" || role === "manager" || role === "support") && (
             <div className="flex flex-wrap gap-2">
               <ActionForm action={markVerified}>
                 <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">

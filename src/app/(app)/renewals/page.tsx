@@ -14,6 +14,11 @@ type PolicyRow = {
 // than a lost/win-back case (those live on the history page).
 const OVERDUE_GRACE_DAYS = 30;
 
+// Not renewal-cycle products — Covid (discontinued) and TA (ad-hoc) are hidden
+// from renewal reminders and the win-back list, though they stay in the system
+// for sales/history.
+const NON_RENEWAL_CATEGORIES = ["Covid", "TA"];
+
 export default async function RenewalsPage({
   searchParams,
 }: {
@@ -57,6 +62,7 @@ export default async function RenewalsPage({
   const latestByGroup = new Map<string, PolicyRow>();
   for (const p of policies) {
     if (!p.customer || !p.category) continue;
+    if (NON_RENEWAL_CATEGORIES.includes(p.category.name)) continue;
     const key = `${p.customer.id}|${p.category.name}`;
     const current = latestByGroup.get(key);
     if (!current || p.coverage_end_date > current.coverage_end_date) {

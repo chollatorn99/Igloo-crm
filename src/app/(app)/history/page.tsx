@@ -70,9 +70,15 @@ export default async function HistoryPage({
 
   const { data: { user } } = await supabase.auth.getUser();
   const { data: me } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
-  const canExport = me?.role !== "sales";
+  const canExport = me?.role === "manager" || me?.role === "accounting";
 
-  const { data: categories } = await supabase.from("policy_categories").select("id, name").order("name");
+  // Covid/TA aren't shown on the win-back list (see the customer_winback view),
+  // so keep them out of the category filter too.
+  const { data: categories } = await supabase
+    .from("policy_categories")
+    .select("id, name")
+    .not("name", "in", "(Covid,TA)")
+    .order("name");
 
   let query = supabase
     .from("customer_winback")

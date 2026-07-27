@@ -127,8 +127,10 @@ export default async function DashboardHome({
   }
 
   // Whose numbers the page shows: a manager can scope to one salesperson via
-  // ?sales=; a salesperson is always scoped to themselves; null = whole team.
-  const scopeId = isManager ? sp.sales || null : user!.id;
+  // ?sales=; a salesperson is scoped to themselves; a support user sees the
+  // whole set RLS returns (only the salesperson they assist). null = "all
+  // visible", which for support already means just their assisted salesperson.
+  const scopeId = isManager ? sp.sales || null : profile?.role === "support" ? null : user!.id;
 
   // Category breakdown, scoped to the selection.
   const byCategory = new Map<string, { id: string | null; name: string; count: number; premium: number; commission: number }>();
