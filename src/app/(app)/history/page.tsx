@@ -57,9 +57,10 @@ export default async function HistoryPage({
     dir?: string;
     page?: string;
     q?: string;
+    brand?: string;
   }>;
 }) {
-  const { year, category_id, status, sort, dir, page: pageParam, q } = await searchParams;
+  const { year, category_id, status, sort, dir, page: pageParam, q, brand } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const sortKey: SortKey = (["renewal", "latest", "premium", "years", "name"] as const).includes(sort as SortKey)
     ? (sort as SortKey)
@@ -92,6 +93,8 @@ export default async function HistoryPage({
   if (year) query = query.eq("latest_year", Number(year));
   if (category_id) query = query.eq("last_category_id", category_id);
   if (q?.trim()) query = query.ilike("name", `%${q.trim().replace(/[%,()]/g, "")}%`);
+  // Car brand/model lives in policy_detail, aggregated into all_details.
+  if (brand?.trim()) query = query.ilike("all_details", `%${brand.trim().replace(/[%,()]/g, "")}%`);
   query = query.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
   const { data, count } = await query;
@@ -107,6 +110,7 @@ export default async function HistoryPage({
     if (category_id) sp.set("category_id", category_id);
     if (status) sp.set("status", status);
     if (q) sp.set("q", q);
+    if (brand) sp.set("brand", brand);
     const active = sortKey === col;
     sp.set("sort", col);
     sp.set("dir", active ? (dirEff === "asc" ? "desc" : "asc") : DEFAULT_DIR[col]);
@@ -131,7 +135,7 @@ export default async function HistoryPage({
             {status === "lapsed" ? " · เฉพาะที่ขาดต่ออายุ" : status === "active" ? " · เฉพาะ Active" : status === "renewed" ? " · เฉพาะที่ต่อแล้ว" : status === "not_renewed" ? " · เฉพาะที่ทำเครื่องหมายไม่ต่อ" : ""}
           </p>
         </div>
-        {canExport && <LazyExportButton filters={{ status, year, category_id, q }} />}
+        {canExport && <LazyExportButton filters={{ status, year, category_id, q, brand }} />}
       </div>
       <p className="mb-4 text-xs text-slate-400">
         รายชื่อลูกค้าที่เคยซื้อประกัน — ใช้โทรกลับเสนอขายลูกค้าเก่า (กรอง &quot;ขาดต่ออายุ&quot; เพื่อดูเฉพาะที่ยังไม่ต่อ) ·
@@ -143,7 +147,13 @@ export default async function HistoryPage({
           name="q"
           defaultValue={q ?? ""}
           placeholder="ค้นหาชื่อลูกค้า"
-          className="w-48 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-500"
+          className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-500"
+        />
+        <input
+          name="brand"
+          defaultValue={brand ?? ""}
+          placeholder="ค้นหาแบรนด์/รุ่นรถ (เช่น NETA, MG)"
+          className="w-52 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-500"
         />
         <select name="status" defaultValue={status ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
           <option value="">สถานะ: ทั้งหมด</option>
@@ -233,7 +243,7 @@ export default async function HistoryPage({
         </table>
       </div>
 
-      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ year, category_id, status, sort, dir, q }} />
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ year, category_id, status, sort, dir, q, brand }} />
     </div>
   );
 }
