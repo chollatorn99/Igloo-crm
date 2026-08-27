@@ -6,6 +6,7 @@ type PolicyRow = {
   id: string;
   coverage_end_date: string;
   insurance_company: string | null;
+  net_premium: number | null;
   category: { name: string; renewal_reminder_days: number } | null;
   customer: { id: string; name: string; phone: string | null; owner_id: string; owner: { full_name: string } | null } | null;
 };
@@ -43,7 +44,7 @@ export default async function RenewalsPage({
     let q = supabase
       .from("policies")
       .select(
-        "id, coverage_end_date, insurance_company, category:policy_categories(name, renewal_reminder_days), customer:customers!inner(id, name, phone, owner_id, owner:profiles(full_name))",
+        "id, coverage_end_date, insurance_company, net_premium, category:policy_categories(name, renewal_reminder_days), customer:customers!inner(id, name, phone, owner_id, owner:profiles(full_name))",
       )
       .eq("deal_status", "win")
       // Only still-open follow-ups: once sales marks the outcome (ต่อแล้ว /
@@ -114,6 +115,7 @@ export default async function RenewalsPage({
               {isManager && <th className="px-4 py-3">Sales</th>}
               <th className="px-4 py-3">ประเภท</th>
               <th className="px-4 py-3">บริษัทประกัน</th>
+              <th className="px-4 py-3">เบี้ยสุทธิ</th>
               <th className="px-4 py-3">วันหมดอายุ</th>
               <th className="px-4 py-3">เหลือ (วัน)</th>
             </tr>
@@ -132,6 +134,7 @@ export default async function RenewalsPage({
                 {isManager && <td className="px-4 py-3 text-slate-600">{p.customer!.owner?.full_name ?? "-"}</td>}
                 <td className="px-4 py-3 text-slate-600">{p.category?.name}</td>
                 <td className="px-4 py-3 text-slate-600">{p.insurance_company ?? "-"}</td>
+                <td className="px-4 py-3 font-mono text-slate-700">{Number(p.net_premium ?? 0).toLocaleString()}</td>
                 <td className="px-4 py-3 text-slate-600">{p.coverage_end_date}</td>
                 <td className="px-4 py-3">
                   <span
@@ -150,7 +153,7 @@ export default async function RenewalsPage({
             ))}
             {due.length === 0 && (
               <tr>
-                <td colSpan={isManager ? 7 : 6} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={isManager ? 8 : 7} className="px-4 py-10 text-center text-slate-400">
                   ไม่มีกรมธรรม์ใกล้หมดอายุ
                 </td>
               </tr>
