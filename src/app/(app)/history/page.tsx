@@ -21,6 +21,7 @@ type ViewRow = {
   last_premium: number | null;
   last_coverage_end: string | null;
   anniv_offset: number | null;
+  is_prospect: boolean;
 };
 
 const PAGE_SIZE = 50;
@@ -58,9 +59,10 @@ export default async function HistoryPage({
     page?: string;
     q?: string;
     brand?: string;
+    type?: string;
   }>;
 }) {
-  const { year, category_id, status, sort, dir, page: pageParam, q, brand } = await searchParams;
+  const { year, category_id, status, sort, dir, page: pageParam, q, brand, type } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const sortKey: SortKey = (["renewal", "latest", "premium", "years", "name"] as const).includes(sort as SortKey)
     ? (sort as SortKey)
@@ -95,6 +97,11 @@ export default async function HistoryPage({
   if (q?.trim()) query = query.ilike("name", `%${q.trim().replace(/[%,()]/g, "")}%`);
   // Car brand/model lives in policy_detail, aggregated into all_details.
   if (brand?.trim()) query = query.ilike("all_details", `%${brand.trim().replace(/[%,()]/g, "")}%`);
+  // Prospects = dealer leads (Kia/Deepal/BRG) who got free year-1 insurance and
+  // haven't bought from us. Default view shows only our real customers.
+  if (type === "prospect") query = query.eq("is_prospect", true);
+  else if (type === "all") { /* both */ }
+  else query = query.eq("is_prospect", false);
   query = query.range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
   const { data, count } = await query;
@@ -111,6 +118,7 @@ export default async function HistoryPage({
     if (status) sp.set("status", status);
     if (q) sp.set("q", q);
     if (brand) sp.set("brand", brand);
+    if (type) sp.set("type", type);
     const active = sortKey === col;
     sp.set("sort", col);
     sp.set("dir", active ? (dirEff === "asc" ? "desc" : "asc") : DEFAULT_DIR[col]);
@@ -135,7 +143,7 @@ export default async function HistoryPage({
             {status === "lapsed" ? " · เฉพาะที่ขาดต่ออายุ" : status === "active" ? " · เฉพาะ Active" : status === "renewed" ? " · เฉพาะที่ต่อแล้ว" : status === "not_renewed" ? " · เฉพาะที่ทำเครื่องหมายไม่ต่อ" : ""}
           </p>
         </div>
-        {canExport && <LazyExportButton filters={{ status, year, category_id, q, brand }} />}
+        {canExport && <LazyExportButton filters={{ status, year, category_id, q, brand, type }} />}
       </div>
       <p className="mb-4 text-xs text-slate-400">
         รายชื่อลูกค้าที่เคยซื้อประกัน — ใช้โทรกลับเสนอขายลูกค้าเก่า (กรอง &quot;ขาดต่ออายุ&quot; เพื่อดูเฉพาะที่ยังไม่ต่อ) ·
@@ -155,6 +163,11 @@ export default async function HistoryPage({
           placeholder="ค้นหาแบรนด์/รุ่นรถ (เช่น NETA, MG)"
           className="w-52 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-500"
         />
+        <select name="type" defaultValue={type ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+          <option value="">ลูกค้าเรา (ที่เคยซื้อ)</option>
+          <option value="prospect">Prospect (ลูกค้าค่ายรถ)</option>
+          <option value="all">ทั้งหมด</option>
+        </select>
         <select name="status" defaultValue={status ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
           <option value="">สถานะ: ทั้งหมด</option>
           <option value="lapsed">ขาดต่ออายุ (ควรโทรกลับ)</option>
@@ -209,6 +222,11 @@ export default async function HistoryPage({
                   <Link href={`/customers/${r.customer_id}`} className="font-medium text-slate-900 hover:underline">
                     {r.name}
                   </Link>
+                  {r.is_prospect && (
+                    <span className="ml-2 rounded-full bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">
+                      ค่ายรถ
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-slate-600">{r.phone ?? "-"}</td>
                 <td className="px-4 py-3 text-slate-600">{r.last_category ?? "-"}</td>
@@ -243,7 +261,7 @@ export default async function HistoryPage({
         </table>
       </div>
 
-      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ year, category_id, status, sort, dir, q, brand }} />
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ year, category_id, status, sort, dir, q, brand, type }} />
     </div>
   );
 }

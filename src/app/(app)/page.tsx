@@ -96,6 +96,7 @@ export default async function DashboardHome({
           "deal_status, net_premium, company_commission_amount, closed_date, category_id, category:policy_categories(name), customer:customers(owner_id)",
         )
         .in("deal_status", ["win", "lost"])
+        .eq("is_prospect", false) // dealer-lead prospects are never our sales
         .order("closed_date")
         .range(f, t);
       // Filter by the sale/conclusion date (closed_date) for the window.

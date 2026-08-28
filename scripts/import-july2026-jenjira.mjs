@@ -87,11 +87,13 @@ console.log(`ไฟล์: ${recs.length} รายการมีเบี้�
 // ---- match customers to existing Jenjira customers ----
 const jenCusts = [];
 for (let o = 0; ; o += 1000) { const p = await rest("GET", `customers?select=id,name&owner_id=eq.${JEN}&offset=${o}&limit=1000`); jenCusts.push(...p); if (p.length < 1000) break; }
-const jc = jenCusts.map((c) => ({ id: c.id, n: norm(c.name) }));
+const strip = (s) => s.replace(/\s/g, "");
+const jc = jenCusts.map((c) => ({ id: c.id, n: norm(c.name), s: strip(norm(c.name)) }));
 const findCust = (base) => {
-  let exact = jc.find((c) => c.n === base); if (exact) return { id: exact.id, how: "exact" };
+  const bs = strip(base);
+  let exact = jc.find((c) => c.n === base || c.s === bs); if (exact) return { id: exact.id, how: "exact" };
   if (base.length >= 6) {
-    const pre = jc.filter((c) => c.n.startsWith(base + " ") || base.startsWith(c.n + " ")).sort((a, b) => a.n.length - b.n.length)[0];
+    const pre = jc.filter((c) => c.n.startsWith(base + " ") || base.startsWith(c.n + " ") || c.s.startsWith(bs) || bs.startsWith(c.s)).sort((a, b) => a.n.length - b.n.length)[0];
     if (pre) return { id: pre.id, how: "prefix:" + pre.n.slice(0, 24) };
   }
   return null;
@@ -116,6 +118,11 @@ if (DRY) {
 const oldJul = await rest("GET", `policies?select=id,customers!inner(owner_id)&customers.owner_id=eq.${JEN}&deal_status=eq.win&closed_date=gte.2026-07-01&closed_date=lte.2026-07-31`);
 for (const p of oldJul) await rest("DELETE", `policies?id=eq.${p.id}`, undefined, "return=minimal");
 console.log(`ลบ ก.ค. เดิมของ Jenjira: ${oldJul.length} รายการ`);
+// Also remove the 30-มิ.ย. SEA Beverage row a previous run inserted (net 13,681)
+// so re-running doesn't duplicate it; keeps other 30-มิ.ย. policies intact.
+const oldSea = await rest("GET", `policies?select=id,customers!inner(owner_id)&customers.owner_id=eq.${JEN}&deal_status=eq.win&closed_date=eq.2026-06-30&net_premium=eq.13681`);
+for (const p of oldSea) await rest("DELETE", `policies?id=eq.${p.id}`, undefined, "return=minimal");
+if (oldSea.length) console.log(`ลบ SEA 30มิ.ย. เดิม: ${oldSea.length} รายการ`);
 
 // 2) remove IAR "อีฟ พาวเวอร์" mis-entered under Chanpimook
 const misEntry = await rest("GET", `policies?select=id,category:policy_categories(name),customer:customers!inner(id,name,owner_id)&customers.owner_id=eq.${CH}&customers.name=ilike.*อีฟ พาวเวอร์*`);

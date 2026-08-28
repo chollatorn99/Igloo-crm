@@ -10,6 +10,7 @@ export type WinbackFilters = {
   category_id?: string;
   q?: string;
   brand?: string;
+  type?: string;
 };
 
 type ViewRow = {
@@ -51,6 +52,8 @@ export async function exportWinback(f: WinbackFilters) {
     if (f.category_id) q = q.eq("last_category_id", f.category_id);
     if (f.q?.trim()) q = q.ilike("name", `%${f.q.trim().replace(/[%,()]/g, "")}%`);
     if (f.brand?.trim()) q = q.ilike("all_details", `%${f.brand.trim().replace(/[%,()]/g, "")}%`);
+    if (f.type === "prospect") q = q.eq("is_prospect", true);
+    else if (f.type !== "all") q = q.eq("is_prospect", false);
     return q as unknown as PromiseLike<{ data: ViewRow[] | null; error: { message: string } | null }>;
   });
 
