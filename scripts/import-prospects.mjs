@@ -94,7 +94,7 @@ const fresh = [], dup = [];
 for (const p of uniq) ((p.phone && exPhones.has(p.phone)) || exNames.has(keyName(p.name)) ? dup : fresh).push(p);
 
 const yearOf = (p) => (p.sale ? Number(p.sale.slice(0, 4)) : 0);
-const isShared = (p) => p.brand === "DEEPAL" || yearOf(p) <= 2024; // Deepal always shared
+const isShared = () => true; // all dealer prospects are shared (both salespeople chase them)
 const chanOnly = fresh.filter((p) => !isShared(p)).length;
 const shared = fresh.filter((p) => isShared(p)).length;
 const byBrand = {}; fresh.forEach((p) => (byBrand[p.brand] = (byBrand[p.brand] || 0) + 1));
@@ -116,7 +116,7 @@ const dbCats = await rest("GET", "policy_categories?select=id,name");
 const motorId = dbCats.find((c) => c.name === "Motor").id;
 
 // insert customers in batches, keep created ids aligned to fresh[]
-const custRows = fresh.map((p) => ({ name: p.name, phone: p.phone, customer_type: custType(p.name), owner_id: CH, is_prospect: true, is_shared: (p.brand === "DEEPAL" || yearOf(p) <= 2024) }));
+const custRows = fresh.map((p) => ({ name: p.name, phone: p.phone, customer_type: custType(p.name), owner_id: CH, is_prospect: true, is_shared: true }));
 const custIds = [];
 for (let i = 0; i < custRows.length; i += 500) {
   const ins = await rest("POST", "customers", custRows.slice(i, i + 500), "return=representation");
