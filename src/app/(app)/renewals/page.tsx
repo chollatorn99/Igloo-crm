@@ -6,6 +6,7 @@ type PolicyRow = {
   id: string;
   coverage_end_date: string;
   insurance_company: string | null;
+  policy_detail: string | null;
   net_premium: number | null;
   category: { name: string; renewal_reminder_days: number } | null;
   customer: { id: string; name: string; phone: string | null; owner_id: string; owner: { full_name: string } | null } | null;
@@ -19,6 +20,10 @@ const OVERDUE_GRACE_DAYS = 30;
 // from renewal reminders and the win-back list, though they stay in the system
 // for sales/history.
 const NON_RENEWAL_CATEGORIES = ["Covid", "TA"];
+
+// Car products — for these we surface the vehicle (brand/model, kept in
+// policy_detail) on the reminder so sales can greet the customer by their car.
+const CAR_CATEGORIES = ["Motor", "พรบ.รถ"];
 
 export default async function RenewalsPage({
   searchParams,
@@ -44,7 +49,7 @@ export default async function RenewalsPage({
     let q = supabase
       .from("policies")
       .select(
-        "id, coverage_end_date, insurance_company, net_premium, category:policy_categories(name, renewal_reminder_days), customer:customers!inner(id, name, phone, owner_id, owner:profiles(full_name))",
+        "id, coverage_end_date, insurance_company, policy_detail, net_premium, category:policy_categories(name, renewal_reminder_days), customer:customers!inner(id, name, phone, owner_id, owner:profiles(full_name))",
       )
       .eq("deal_status", "win")
       // Only still-open follow-ups: once sales marks the outcome (ต่อแล้ว /
@@ -114,6 +119,7 @@ export default async function RenewalsPage({
               <th className="px-4 py-3">เบอร์โทร</th>
               {isManager && <th className="px-4 py-3">Sales</th>}
               <th className="px-4 py-3">ประเภท</th>
+              <th className="px-4 py-3">รถ (แบรนด์/รุ่น)</th>
               <th className="px-4 py-3">บริษัทประกัน</th>
               <th className="px-4 py-3">เบี้ยสุทธิ</th>
               <th className="px-4 py-3">วันหมดอายุ</th>
@@ -133,6 +139,9 @@ export default async function RenewalsPage({
                 <td className="px-4 py-3 font-mono text-xs text-slate-600">{p.customer!.phone ?? "-"}</td>
                 {isManager && <td className="px-4 py-3 text-slate-600">{p.customer!.owner?.full_name ?? "-"}</td>}
                 <td className="px-4 py-3 text-slate-600">{p.category?.name}</td>
+                <td className="px-4 py-3 text-slate-600">
+                  {p.category && CAR_CATEGORIES.includes(p.category.name) ? (p.policy_detail ?? "-") : "-"}
+                </td>
                 <td className="px-4 py-3 text-slate-600">{p.insurance_company ?? "-"}</td>
                 <td className="px-4 py-3 font-mono text-slate-700">{Number(p.net_premium ?? 0).toLocaleString()}</td>
                 <td className="px-4 py-3 text-slate-600">{p.coverage_end_date}</td>
@@ -153,7 +162,7 @@ export default async function RenewalsPage({
             ))}
             {due.length === 0 && (
               <tr>
-                <td colSpan={isManager ? 8 : 7} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={isManager ? 9 : 8} className="px-4 py-10 text-center text-slate-400">
                   ไม่มีกรมธรรม์ใกล้หมดอายุ
                 </td>
               </tr>
