@@ -21,6 +21,7 @@ type ViewRow = {
   last_premium: number | null;
   last_coverage_end: string | null;
   anniv_offset: number | null;
+  all_details: string | null;
   is_prospect: boolean;
 };
 
@@ -207,6 +208,7 @@ export default async function HistoryPage({
               <SortHeader label="ลูกค้า" col="name" />
               <th className="px-4 py-3">เบอร์โทร</th>
               <th className="px-4 py-3">ประเภทล่าสุด</th>
+              <th className="px-4 py-3">รถ (แบรนด์/รุ่น)</th>
               <SortHeader label="หมดอายุ (ว/ด)" col="renewal" />
               <SortHeader label="ปีที่ซื้อล่าสุด" col="latest" />
               <SortHeader label="จำนวนปีที่ซื้อ" col="years" />
@@ -230,6 +232,9 @@ export default async function HistoryPage({
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-slate-600">{r.phone ?? "-"}</td>
                 <td className="px-4 py-3 text-slate-600">{r.last_category ?? "-"}</td>
+                <td className="max-w-[220px] truncate px-4 py-3 text-slate-600" title={r.all_details ?? ""}>
+                  {r.all_details ?? "-"}
+                </td>
                 <td className="px-4 py-3 font-mono text-slate-600">{dayMonth(r.last_coverage_end)}</td>
                 <td className="px-4 py-3 text-slate-600">{r.latest_year ?? "-"}</td>
                 <td className="px-4 py-3 text-slate-600">{r.years_count ?? "-"}</td>
@@ -252,7 +257,7 @@ export default async function HistoryPage({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={10} className="px-4 py-10 text-center text-slate-400">
                   ไม่มีข้อมูล
                 </td>
               </tr>
