@@ -25,12 +25,14 @@ const NON_RENEWAL_CATEGORIES = ["Covid", "TA"];
 // policy_detail) on the reminder so sales can greet the customer by their car.
 const CAR_CATEGORIES = ["Motor", "พรบ.รถ"];
 
+const MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+
 export default async function RenewalsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sales?: string }>;
+  searchParams: Promise<{ sales?: string; q?: string; category_id?: string; month?: string }>;
 }) {
-  const { sales } = await searchParams;
+  const { sales, q, category_id, month } = await searchParams;
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -41,12 +43,19 @@ export default async function RenewalsPage({
     ? (await supabase.from("profiles").select("id, full_name").in("role", ["sales", "manager"]).order("full_name")).data
     : null;
 
+  // Category options for the filter (Covid/TA never appear on reminders).
+  const { data: categories } = await supabase
+    .from("policy_categories")
+    .select("id, name")
+    .not("name", "in", `(${NON_RENEWAL_CATEGORIES.join(",")})`)
+    .order("name");
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const floor = new Date(today.getTime() - OVERDUE_GRACE_DAYS * 86400e3).toISOString().slice(0, 10);
 
   const policies = await fetchAll<PolicyRow>((from, to) => {
-    let q = supabase
+    let query = supabase
       .from("policies")
       .select(
         "id, coverage_end_date, insurance_company, policy_detail, net_premium, category:policy_categories(name, renewal_reminder_days), customer:customers!inner(id, name, phone, owner_id, owner:profiles(full_name))",
@@ -58,8 +67,10 @@ export default async function RenewalsPage({
       .gte("coverage_end_date", floor)
       .order("coverage_end_date", { ascending: true })
       .range(from, to);
-    if (isManager && sales) q = q.eq("customer.owner_id", sales);
-    return q as unknown as PromiseLike<{ data: PolicyRow[] | null; error: { message: string } | null }>;
+    if (isManager && sales) query = query.eq("customer.owner_id", sales);
+    if (category_id) query = query.eq("category_id", category_id);
+    if (q?.trim()) query = query.ilike("customer.name", `%${q.trim().replace(/[%,()]/g, "")}%`);
+    return query as unknown as PromiseLike<{ data: PolicyRow[] | null; error: { message: string } | null }>;
   });
 
   // One reminder per customer+category, based on their newest policy — an
@@ -83,6 +94,8 @@ export default async function RenewalsPage({
       return { ...p, daysLeft };
     })
     .filter((p) => p.daysLeft <= (p.category?.renewal_reminder_days ?? 120))
+    // Filter by the month the policy expires (1-12), if chosen.
+    .filter((p) => !month || new Date(p.coverage_end_date).getMonth() + 1 === Number(month))
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
   const selectedName = sales ? people?.find((x) => x.id === sales)?.full_name : null;
@@ -95,8 +108,30 @@ export default async function RenewalsPage({
         (รวมที่เพิ่งเกินกำหนดไม่เกิน {OVERDUE_GRACE_DAYS} วัน) — ลูกค้าที่ขาดต่อนานแล้วอยู่ในหน้า &quot;ประวัติลูกค้าเก่า&quot;
       </p>
 
-      {isManager && (
-        <form className="mb-4 flex flex-wrap gap-2">
+      <form className="mb-4 flex flex-wrap gap-2">
+        <input
+          name="q"
+          defaultValue={q ?? ""}
+          placeholder="ค้นหาชื่อลูกค้า"
+          className="w-44 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-500"
+        />
+        <select name="category_id" defaultValue={category_id ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+          <option value="">ทุกประเภทประกัน</option>
+          {categories?.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <select name="month" defaultValue={month ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+          <option value="">ทุกเดือนที่หมดอายุ</option>
+          {MONTHS.map((m, i) => (
+            <option key={i} value={i + 1}>
+              {m}
+            </option>
+          ))}
+        </select>
+        {isManager && (
           <select name="sales" defaultValue={sales ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
             <option value="">ทุก Sales</option>
             {people?.map((x) => (
@@ -105,11 +140,11 @@ export default async function RenewalsPage({
               </option>
             ))}
           </select>
-          <button className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
-            กรอง
-          </button>
-        </form>
-      )}
+        )}
+        <button className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+          กรอง
+        </button>
+      </form>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full text-sm">
