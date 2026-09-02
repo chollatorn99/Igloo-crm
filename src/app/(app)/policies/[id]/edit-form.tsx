@@ -34,6 +34,11 @@ export function PolicyEditForm({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // Live running total so staff can verify เบี้ยรวม against the paperwork before saving.
+  const [net, setNet] = useState(policy.net_premium ?? 0);
+  const [stamp, setStamp] = useState(policy.stamp_duty ?? 0);
+  const [vat, setVat] = useState(policy.vat ?? 0);
+  const totalPremium = net + stamp + vat;
 
   async function handleSubmit(formData: FormData) {
     setError(null);
@@ -128,6 +133,7 @@ export function PolicyEditForm({
             step="0.01"
             name="net_premium"
             defaultValue={policy.net_premium ?? ""}
+            onChange={(e) => setNet(Number(e.target.value) || 0)}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
@@ -138,6 +144,7 @@ export function PolicyEditForm({
             step="0.01"
             name="stamp_duty"
             defaultValue={policy.stamp_duty ?? 0}
+            onChange={(e) => setStamp(Number(e.target.value) || 0)}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
@@ -148,9 +155,17 @@ export function PolicyEditForm({
             step="0.01"
             name="vat"
             defaultValue={policy.vat ?? 0}
+            onChange={(e) => setVat(Number(e.target.value) || 0)}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+      </div>
+
+      <div className="flex items-center justify-between rounded-md bg-slate-100 px-3 py-2 text-sm">
+        <span className="text-slate-600">เบี้ยรวม (เบี้ย + อากร + VAT)</span>
+        <span className="font-mono font-semibold text-slate-900">
+          {totalPremium.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+        </span>
       </div>
 
       <div>
