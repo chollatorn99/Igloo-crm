@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { addFollowUpNote, reassignOwner } from "./actions";
 import { ActionForm } from "@/components/ActionForm";
+import { CustomerEditForm } from "./edit-info-form";
 
 const DEAL_STATUS_LABEL: Record<string, string> = {
   pending: "กำลังติดตาม",
@@ -24,7 +25,7 @@ export default async function CustomerDetailPage({
 
   const { data: customer } = await supabase
     .from("customers")
-    .select("id, name, phone, customer_type, call_count, last_call_result, owner_id, owner:profiles(full_name)")
+    .select("id, name, phone, email, address, line_id, customer_type, call_count, last_call_result, owner_id, owner:profiles(full_name)")
     .eq("id", id)
     .single();
 
@@ -63,10 +64,29 @@ export default async function CustomerDetailPage({
           {customer.phone ?? "ไม่มีเบอร์โทร"} · เจ้าของ:{" "}
           {(customer.owner as unknown as { full_name: string } | null)?.full_name ?? "-"}
         </p>
+        {(customer.email || customer.line_id || customer.address) && (
+          <div className="mt-2 space-y-0.5 text-sm text-slate-600">
+            {customer.email && <p>อีเมล: {customer.email}</p>}
+            {customer.line_id && <p>LINE: {customer.line_id}</p>}
+            {customer.address && <p>ที่อยู่: {customer.address}</p>}
+          </div>
+        )}
         <p className="mt-1 text-xs text-slate-400">
           โทรไปแล้ว {customer.call_count} ครั้ง
           {customer.last_call_result ? ` · ล่าสุด: ${customer.last_call_result}` : ""}
         </p>
+
+        <CustomerEditForm
+          customer={{
+            id: customer.id,
+            name: customer.name,
+            phone: customer.phone,
+            email: customer.email,
+            address: customer.address,
+            line_id: customer.line_id,
+            customer_type: customer.customer_type,
+          }}
+        />
 
         {isManager && salesOptions && (
           <ActionForm action={reassign} className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">

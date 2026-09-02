@@ -44,6 +44,37 @@ export async function addFollowUpNote(customerId: string, formData: FormData): P
   return {};
 }
 
+export async function updateCustomerInfo(customerId: string, formData: FormData): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "ต้องมีชื่อลูกค้า" };
+  const clean = (k: string) => {
+    const v = String(formData.get(k) ?? "").trim();
+    return v === "" ? null : v;
+  };
+
+  // RLS (customers_update) decides whether this user may edit this row —
+  // owner / their support / a manager / a shared-prospect salesperson.
+  const { error } = await supabase
+    .from("customers")
+    .update({
+      name,
+      phone: clean("phone"),
+      email: clean("email"),
+      address: clean("address"),
+      line_id: clean("line_id"),
+      customer_type: formData.get("customer_type") === "organization" ? "organization" : "individual",
+    })
+    .eq("id", customerId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/customers/${customerId}`);
+  return {};
+}
+
 export async function reassignOwner(customerId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
   const newOwnerId = String(formData.get("owner_id") ?? "");
