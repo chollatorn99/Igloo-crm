@@ -28,8 +28,11 @@ export async function authorizeAndLogExport(
     .single();
 
   if (!profile) return { error: "ไม่พบบัญชีผู้ใช้" };
-  if (profile.role === "sales") {
-    return { error: "role Sales ไม่มีสิทธิ์ Export ข้อมูล — กรุณาติดต่อผู้จัดการ" };
+  // Whitelist: only manager/accounting may bulk-export. Everyone else (sales,
+  // support) is blocked server-side even if they call the action directly —
+  // bulk export is the main mass-data-theft vector, so default-deny here.
+  if (profile.role !== "manager" && profile.role !== "accounting") {
+    return { error: "ไม่มีสิทธิ์ Export ข้อมูล — เฉพาะผู้จัดการเท่านั้น" };
   }
 
   // Best-effort audit log: the role gate above is the hard control, so a
