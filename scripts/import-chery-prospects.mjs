@@ -51,7 +51,10 @@ for (const sn of wb.SheetNames) {
     const cartype = norm(r[iCarType]); // e.g. "CHERY V23"
     const variant = norm(r[iVariant]); // e.g. "V23 2WD PLUS Black Black"
     const vin = norm(r[iVin]);
-    const detail = [cartype || "CHERY", variant, vin && `VIN ${vin}`].filter(Boolean).join(" · ");
+    // Prefix CHERY so every car (incl. TIGGO models whose type omits it) is
+    // findable by brand search.
+    const model = /chery/i.test(cartype) ? cartype : `CHERY ${cartype || ""}`.trim();
+    const detail = [model, variant, vin && `VIN ${vin}`].filter(Boolean).join(" · ");
     recs.push({
       branch: sn, name, phone: normPhone(r[iPhone]),
       email: iEmail >= 0 ? (norm(r[iEmail]) || null) : null, address,
