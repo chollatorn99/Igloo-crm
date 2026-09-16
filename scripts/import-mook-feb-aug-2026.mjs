@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import * as XLSX from "xlsx";
 
-const FILE = "C:/Users/UnGy/OneDrive/Documents/INSURENACE CHEK เดือน 02-08 . 2026.xlsx";
+const FILE = "C:/Users/UnGy/OneDrive/Documents/INSURENACE CHEK เดือน 02-08 . 2026(1).xlsx";
 const CH = "3275c3e2-2c5e-4787-abba-54c10df39127"; // Chanpimook
 const DRY = process.env.DRY === "1";
 
@@ -53,7 +53,9 @@ for (const sn of ["02.26", "03.26", "04.26", "05.26", "06.26", "07.26", "08.26"]
     if (isDate(r[p])) { cov = r[p]; p++; }
     const net = num(r[p]); if (!(net > 0)) continue;
     const nm = norm(r[nameC]); if (nm) lastName = nm;
-    const name = nm || lastName; if (!name) continue;
+    let name = nm || lastName; if (!name) continue;
+    // New file truncated one Aug row's name to just "คุณ" — restore full name.
+    if (name.trim() === "คุณ") name = "คุณพุทธธิดา พุทธเจริญ";
     const cat = catOf(r[catC]);
     const start = cov ? parseDMY(cov) : null;
     recs.push({
@@ -68,26 +70,7 @@ for (const sn of ["02.26", "03.26", "04.26", "05.26", "06.26", "07.26", "08.26"]
     });
   }
 }
-// Sheet1 = Chery real sales (Aug). cols: 1=วันแจ้งงาน,2=อ้างอิง,3=ชื่อ,4=รุ่น,5=ประเภท,6=ประกันภัย,7=คุ้มครอง,8=เบี้ยสุทธิ
-{
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets["Sheet1"], { defval: null, header: 1 });
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i]; if (!r) continue; const net = num(r[8]); if (!(net > 0)) continue;
-    const name = norm(r[3]); if (!name) continue;
-    const cat = catOf(r[5]);
-    const start = parseDMY(r[7]);
-    recs.push({
-      month: "Sheet1", base: name, brand: "CHERY", model: norm(r[4]),
-      category: cat, insurer: norm(r[6]) || null,
-      net_premium: net, stamp_duty: 0, vat: 0,
-      coverage_start_date: start, coverage_end_date: plusYear(start),
-      closed_date: parseDMY(r[1]) || lastDay(8),
-      company_commission_rate: COMM[cat],
-      policy_detail: ["CHERY", norm(r[4])].filter(Boolean).join(" ") || null,
-      notes: `ขายจริง Chery · report ส.ค. 2026`,
-    });
-  }
-}
+// (Sheet1 removed — it duplicated the Chery rows already inside sheet 08.26.)
 
 const byMonth = {}; recs.forEach((r) => { byMonth[r.month] = byMonth[r.month] || { n: 0, s: 0 }; byMonth[r.month].n++; byMonth[r.month].s += r.net_premium; });
 console.log("เดือน | กรมธรรม์ | เบี้ยสุทธิ");
