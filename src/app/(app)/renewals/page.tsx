@@ -64,6 +64,9 @@ export default async function RenewalsPage({
       // Only still-open follow-ups: once sales marks the outcome (ต่อแล้ว /
       // ไม่ต่อ) the policy drops off this list.
       .eq("renewal_outcome", "pending")
+      // Mid-term group endorsements (สลักหลัง) keep their premium but must not
+      // each raise a separate reminder — only the main policy drives it.
+      .eq("is_endorsement", false)
       .gte("coverage_end_date", floor)
       .order("coverage_end_date", { ascending: true })
       .range(from, to);
