@@ -55,30 +55,34 @@ export default async function FollowUpsPage({
     if (g) g.count++;
     else byCustomer.set(n.customer_id, { name: n.customer.name, phone: n.customer.phone, count: 1, last: n.created_at, lastNote: n.note_text });
   }
-  // Roll up each customer's deal status so we can label/filter: any open
-  // (pending) deal → still following up; else a win → ต่อแล้ว; else a lost →
-  // ไม่ต่อ. (Pending wins so a customer with work still open isn't marked done.)
+  // Status reflects the CURRENT renewal cycle, not lifetime history: a historical
+  // "win" (every past purchase) does NOT mean renewed. We look at renewal_outcome
+  // on policies whose coverage is current (ending within the last ~120 days or
+  // later) — so old resolved cycles don't count.
+  //   renewed  → ต่อแล้ว   ·  not_renewed / lost → ไม่ต่อ  ·  otherwise → ยังติดตาม
+  const CYCLE_CUTOFF = new Date(Date.now() - 120 * 86400e3).toISOString().slice(0, 10);
   const ids = [...byCustomer.keys()];
-  const flags = new Map<string, { pending: boolean; win: boolean; lost: boolean }>();
+  const flags = new Map<string, { renewed: boolean; lost: boolean; pending: boolean }>();
   for (let i = 0; i < ids.length; i += 100) {
     const { data: ps } = await supabase
       .from("policies")
-      .select("customer_id, deal_status")
-      .in("customer_id", ids.slice(i, i + 100));
-    for (const p of (ps ?? []) as { customer_id: string; deal_status: string }[]) {
-      const f = flags.get(p.customer_id) ?? { pending: false, win: false, lost: false };
-      if (p.deal_status === "pending") f.pending = true;
-      else if (p.deal_status === "win") f.win = true;
-      else if (p.deal_status === "lost") f.lost = true;
+      .select("customer_id, deal_status, renewal_outcome, coverage_end_date")
+      .in("customer_id", ids.slice(i, i + 100))
+      .or(`coverage_end_date.gte.${CYCLE_CUTOFF},coverage_end_date.is.null`);
+    for (const p of (ps ?? []) as { customer_id: string; deal_status: string; renewal_outcome: string | null; coverage_end_date: string | null }[]) {
+      const f = flags.get(p.customer_id) ?? { renewed: false, lost: false, pending: false };
+      if (p.renewal_outcome === "renewed") f.renewed = true;
+      else if (p.renewal_outcome === "not_renewed" || p.deal_status === "lost") f.lost = true;
+      else if (p.deal_status !== "lost") f.pending = true;
       flags.set(p.customer_id, f);
     }
   }
   const statusOf = (id: string): "following" | "won" | "lost" => {
     const f = flags.get(id);
-    if (!f || f.pending) return "following";
-    if (f.win) return "won";
-    if (f.lost) return "lost";
-    return "following";
+    if (!f) return "following";
+    if (f.renewed) return "won"; // renewed this cycle
+    if (f.lost && !f.pending) return "lost"; // declined and nothing else open
+    return "following"; // still has a pending renewal to chase
   };
   const STATUS_META: Record<string, { label: string; cls: string }> = {
     following: { label: "อยู่ระหว่างติดตาม", cls: "bg-amber-100 text-amber-700" },
