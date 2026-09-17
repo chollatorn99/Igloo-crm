@@ -21,6 +21,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { label: "หน้าหลัก (Dashboard)", href: "/" },
     { label: "ลูกค้าของฉัน", href: "/customers" },
     { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
+    { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
     { label: "ประวัติลูกค้าเก่า", href: "/history" },
     { label: "ลูกค้าที่ติดตาม", href: "/follow-ups" },
     { label: "Agent (นายหน้า)", href: "/agents" },

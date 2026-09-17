@@ -63,20 +63,28 @@ export default async function FollowUpsPage({
   const CYCLE_CUTOFF = new Date(Date.now() - 120 * 86400e3).toISOString().slice(0, 10);
   const ids = [...byCustomer.keys()];
   const flags = new Map<string, { renewed: boolean; lost: boolean; pending: boolean }>();
+  // The policy to act on when the name is clicked — the latest still-open
+  // renewal (so the ต่อ/ไม่ต่อ buttons on the policy page apply to it).
+  const target = new Map<string, { id: string; end: string }>();
   for (let i = 0; i < ids.length; i += 100) {
     const { data: ps } = await supabase
       .from("policies")
-      .select("customer_id, deal_status, renewal_outcome, coverage_end_date")
+      .select("id, customer_id, deal_status, renewal_outcome, coverage_end_date, is_endorsement")
       .in("customer_id", ids.slice(i, i + 100))
       .or(`coverage_end_date.gte.${CYCLE_CUTOFF},coverage_end_date.is.null`);
-    for (const p of (ps ?? []) as { customer_id: string; deal_status: string; renewal_outcome: string | null; coverage_end_date: string | null }[]) {
+    for (const p of (ps ?? []) as { id: string; customer_id: string; deal_status: string; renewal_outcome: string | null; coverage_end_date: string | null; is_endorsement: boolean }[]) {
       const f = flags.get(p.customer_id) ?? { renewed: false, lost: false, pending: false };
       if (p.renewal_outcome === "renewed") f.renewed = true;
       else if (p.renewal_outcome === "not_renewed" || p.deal_status === "lost") f.lost = true;
       else if (p.deal_status !== "lost") f.pending = true;
       flags.set(p.customer_id, f);
+      if (p.renewal_outcome === "pending" && p.deal_status === "win" && !p.is_endorsement && p.coverage_end_date) {
+        const cur = target.get(p.customer_id);
+        if (!cur || p.coverage_end_date > cur.end) target.set(p.customer_id, { id: p.id, end: p.coverage_end_date });
+      }
     }
   }
+  const linkFor = (id: string) => (target.has(id) ? `/policies/${target.get(id)!.id}` : `/customers/${id}`);
   const statusOf = (id: string): "following" | "won" | "lost" => {
     const f = flags.get(id);
     if (!f) return "following";
@@ -152,7 +160,7 @@ export default async function FollowUpsPage({
             {rows.map(([id, c]) => (
               <tr key={id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
-                  <Link href={`/customers/${id}`} className="font-medium text-slate-900 hover:underline">
+                  <Link href={linkFor(id)} className="font-medium text-slate-900 hover:underline">
                     {c.name}
                   </Link>
                 </td>
