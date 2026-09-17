@@ -34,9 +34,9 @@ const ACTION_META: Record<string, { label: string; cls: string }> = {
 export default async function ActivityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ actor?: string; from?: string; to?: string; page?: string }>;
+  searchParams: Promise<{ actor?: string; from?: string; to?: string; action?: string; page?: string }>;
 }) {
-  const { actor, from, to, page: pageParam } = await searchParams;
+  const { actor, from, to, action, page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const supabase = await createClient();
 
@@ -57,6 +57,7 @@ export default async function ActivityPage({
     .order("created_at", { ascending: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
   if (isManager && actor) query = query.eq("actor_id", actor);
+  if (action) query = query.eq("action", action);
   if (from) query = query.gte("created_at", from);
   if (to) query = query.lte("created_at", `${to}T23:59:59`);
 
@@ -90,6 +91,14 @@ export default async function ActivityPage({
             ))}
           </select>
         )}
+        <select name="action" defaultValue={action ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+          <option value="">ทุกประเภท</option>
+          <option value="call_logged">ติดตาม/โทร (Follow-up)</option>
+          <option value="renewed">ต่ออายุ</option>
+          <option value="deal_won">ปิด Win</option>
+          <option value="deal_lost">ปิด Lost</option>
+          <option value="payment_reported">แจ้งชำระ</option>
+        </select>
         <input type="date" name="from" defaultValue={from ?? ""} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
         <span className="text-xs text-slate-400">ถึง</span>
         <input type="date" name="to" defaultValue={to ?? ""} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
@@ -139,7 +148,7 @@ export default async function ActivityPage({
         </table>
       </div>
 
-      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ actor, from, to }} />
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ actor, from, to, action }} />
     </div>
   );
 }
