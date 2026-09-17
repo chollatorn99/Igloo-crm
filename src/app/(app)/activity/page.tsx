@@ -65,6 +65,36 @@ export default async function ActivityPage({
   const rows = (data ?? []) as unknown as Row[];
   const total = count ?? 0;
 
+  // activity_log.summary stores only the first 60 chars of a follow-up note, so
+  // pull the full text from follow_up_notes for the call_logged rows on screen
+  // and match by customer + near-identical timestamp (note is inserted moments
+  // before its activity row).
+  const noteCustomerIds = [...new Set(rows.filter((r) => r.action === "call_logged" && r.customer_id).map((r) => r.customer_id!))];
+  const notesByCustomer = new Map<string, { note_text: string; created_at: string }[]>();
+  if (noteCustomerIds.length) {
+    const { data: notes } = await supabase
+      .from("follow_up_notes")
+      .select("customer_id, note_text, created_at")
+      .in("customer_id", noteCustomerIds)
+      .order("created_at", { ascending: false });
+    for (const n of (notes ?? []) as { customer_id: string; note_text: string; created_at: string }[]) {
+      if (!notesByCustomer.has(n.customer_id)) notesByCustomer.set(n.customer_id, []);
+      notesByCustomer.get(n.customer_id)!.push(n);
+    }
+  }
+  const fullSummary = (r: Row) => {
+    if (r.action !== "call_logged" || !r.customer_id) return r.summary;
+    const notes = notesByCustomer.get(r.customer_id) ?? [];
+    const t = new Date(r.created_at).getTime();
+    let best: { note_text: string; created_at: string } | null = null;
+    let bestGap = 60000; // within 60s
+    for (const n of notes) {
+      const gap = Math.abs(new Date(n.created_at).getTime() - t);
+      if (gap < bestGap) { bestGap = gap; best = n; }
+    }
+    return best ? `${r.summary.split("—")[0].trim()} — ${best.note_text}` : r.summary;
+  };
+
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
@@ -128,10 +158,10 @@ export default async function ActivityPage({
                   <td className="px-4 py-3 text-slate-600">
                     {r.customer_id ? (
                       <Link href={`/customers/${r.customer_id}`} className="hover:underline">
-                        {r.summary}
+                        {fullSummary(r)}
                       </Link>
                     ) : (
-                      r.summary
+                      fullSummary(r)
                     )}
                   </td>
                 </tr>

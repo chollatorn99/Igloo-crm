@@ -35,7 +35,7 @@ export async function addFollowUpNote(customerId: string, formData: FormData): P
   const { data: c } = await supabase.from("customers").select("name").eq("id", customerId).single();
   await logActivity(supabase, {
     action: "call_logged",
-    summary: `บันทึกการติดตาม: ${c?.name ?? "-"} — ${note_text.slice(0, 60)}`,
+    summary: `บันทึกการติดตาม: ${c?.name ?? "-"} — ${note_text}`,
     entityId: customerId,
     customerId,
   });
