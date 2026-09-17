@@ -20,9 +20,9 @@ const PAGE_SIZE = 50;
 export default async function FollowUpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; actor?: string; mine?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; actor?: string; mine?: string; status?: string; page?: string }>;
 }) {
-  const { q, actor, mine, page: pageParam } = await searchParams;
+  const { q, actor, mine, status, page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
   const supabase = await createClient();
 
@@ -55,7 +55,39 @@ export default async function FollowUpsPage({
     if (g) g.count++;
     else byCustomer.set(n.customer_id, { name: n.customer.name, phone: n.customer.phone, count: 1, last: n.created_at, lastNote: n.note_text });
   }
-  const all = [...byCustomer.entries()].sort((a, b) => (a[1].last < b[1].last ? 1 : -1));
+  // Roll up each customer's deal status so we can label/filter: any open
+  // (pending) deal → still following up; else a win → ต่อแล้ว; else a lost →
+  // ไม่ต่อ. (Pending wins so a customer with work still open isn't marked done.)
+  const ids = [...byCustomer.keys()];
+  const flags = new Map<string, { pending: boolean; win: boolean; lost: boolean }>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data: ps } = await supabase
+      .from("policies")
+      .select("customer_id, deal_status")
+      .in("customer_id", ids.slice(i, i + 100));
+    for (const p of (ps ?? []) as { customer_id: string; deal_status: string }[]) {
+      const f = flags.get(p.customer_id) ?? { pending: false, win: false, lost: false };
+      if (p.deal_status === "pending") f.pending = true;
+      else if (p.deal_status === "win") f.win = true;
+      else if (p.deal_status === "lost") f.lost = true;
+      flags.set(p.customer_id, f);
+    }
+  }
+  const statusOf = (id: string): "following" | "won" | "lost" => {
+    const f = flags.get(id);
+    if (!f || f.pending) return "following";
+    if (f.win) return "won";
+    if (f.lost) return "lost";
+    return "following";
+  };
+  const STATUS_META: Record<string, { label: string; cls: string }> = {
+    following: { label: "อยู่ระหว่างติดตาม", cls: "bg-amber-100 text-amber-700" },
+    won: { label: "ต่อแล้ว (Win)", cls: "bg-emerald-100 text-emerald-700" },
+    lost: { label: "ไม่ต่อ (Lost)", cls: "bg-rose-100 text-rose-700" },
+  };
+
+  let all = [...byCustomer.entries()].sort((a, b) => (a[1].last < b[1].last ? 1 : -1));
+  if (status === "following" || status === "won" || status === "lost") all = all.filter(([id]) => statusOf(id) === status);
   const total = all.length;
   const rows = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -76,6 +108,12 @@ export default async function FollowUpsPage({
           placeholder="ค้นหาชื่อลูกค้า"
           className="w-48 rounded-md border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-slate-500"
         />
+        <select name="status" defaultValue={status ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+          <option value="">ทุกสถานะ</option>
+          <option value="following">อยู่ระหว่างติดตาม</option>
+          <option value="won">ต่อแล้ว (Win)</option>
+          <option value="lost">ไม่ต่อ (Lost)</option>
+        </select>
         {isManager ? (
           <select name="actor" defaultValue={actor ?? ""} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm">
             <option value="">ทุกคน</option>
@@ -100,6 +138,7 @@ export default async function FollowUpsPage({
             <tr>
               <th className="px-4 py-3">ลูกค้า</th>
               <th className="px-4 py-3">เบอร์โทร</th>
+              <th className="px-4 py-3">สถานะ</th>
               <th className="px-4 py-3">จำนวนครั้ง</th>
               <th className="px-4 py-3">ติดตามล่าสุด</th>
               <th className="px-4 py-3">โน้ตล่าสุด</th>
@@ -114,6 +153,11 @@ export default async function FollowUpsPage({
                   </Link>
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-slate-600">{c.phone ?? "-"}</td>
+                <td className="px-4 py-3">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_META[statusOf(id)].cls}`}>
+                    {STATUS_META[statusOf(id)].label}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-slate-600">{c.count}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">{fmt(c.last)}</td>
                 <td className="px-4 py-3 text-slate-600">{c.lastNote}</td>
@@ -121,7 +165,7 @@ export default async function FollowUpsPage({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
                   ยังไม่มีการบันทึกติดตาม
                 </td>
               </tr>
@@ -130,7 +174,7 @@ export default async function FollowUpsPage({
         </table>
       </div>
 
-      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ q, actor, mine }} />
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ q, actor, mine, status }} />
     </div>
   );
 }
