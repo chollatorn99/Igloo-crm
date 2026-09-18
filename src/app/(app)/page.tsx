@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/fetchAll";
+import { DashboardCharts, type Slice } from "./dashboard-charts";
 
 type NoteRow = { author_id: string; created_at: string };
 type DashPolicyRow = {
   deal_status: string;
   net_premium: number | null;
+  total_premium: number | null;
   company_commission_amount: number | null;
   closed_date: string | null;
   category_id: string | null;
+  insurance_company: string | null;
+  payment_status: string | null;
   category: { name: string } | null;
   customer: { owner_id: string } | null;
 };
@@ -93,7 +97,7 @@ export default async function DashboardHome({
       let q = supabase
         .from("policies")
         .select(
-          "deal_status, net_premium, company_commission_amount, closed_date, category_id, category:policy_categories(name), customer:customers(owner_id)",
+          "deal_status, net_premium, total_premium, company_commission_amount, closed_date, category_id, insurance_company, payment_status, category:policy_categories(name), customer:customers(owner_id)",
         )
         .in("deal_status", ["win", "lost"])
         .eq("is_prospect", false) // dealer-lead prospects are never our sales
@@ -149,6 +153,34 @@ export default async function DashboardHome({
     byCategory.set(catName, c);
   }
 
+  // Extra manager analytics (all scoped to the current selection/window):
+  //  - premium by insurer, - payment collection status, - AR (outstanding).
+  const inScope = (p: DashPolicyRow) => {
+    const o = p.customer?.owner_id;
+    return !!o && (!scopeId || o === scopeId);
+  };
+  const byInsurer = new Map<string, number>();
+  const pay = { collected: 0, awaiting: 0, rejected: 0 };
+  const payCount = { collected: 0, awaiting: 0, rejected: 0 };
+  for (const p of policies) {
+    if (p.deal_status !== "win" || !inScope(p)) continue;
+    const ins = (p.insurance_company ?? "").trim() || "ไม่ระบุบริษัท";
+    byInsurer.set(ins, (byInsurer.get(ins) ?? 0) + Number(p.net_premium ?? 0));
+    const amt = Number(p.total_premium ?? 0);
+    if (p.payment_status === "verified") { pay.collected += amt; payCount.collected++; }
+    else if (p.payment_status === "awaiting_payment" || p.payment_status === "awaiting_verification") { pay.awaiting += amt; payCount.awaiting++; }
+    else if (p.payment_status === "rejected") { pay.rejected += amt; payCount.rejected++; }
+  }
+  const insurerData: Slice[] = [...byInsurer.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([name, value], i) => ({ label: name, value, color: PALETTE[i % PALETTE.length] }));
+  const paymentData: Slice[] = [
+    { label: "เก็บแล้ว (ตรวจสอบแล้ว)", value: pay.collected, color: "#16a34a" },
+    { label: "ลูกหนี้ (ค้างชำระ/รอตรวจ)", value: pay.awaiting, color: "#d97706" },
+    { label: "สลิปไม่ผ่าน", value: pay.rejected, color: "#dc2626" },
+  ].filter((s) => s.value > 0);
+
   const totals = [...byUser.values()].reduce((acc, s) => {
     (Object.keys(s) as (keyof Stat)[]).forEach((k) => (acc[k] = (acc[k] ?? 0) + s[k]));
     return acc;
@@ -183,6 +215,16 @@ export default async function DashboardHome({
   const salesHref = (id: string) => `/?${periodStr ? periodStr + "&" : ""}sales=${id}`;
   const clearSalesHref = periodStr ? `/?${periodStr}` : "/";
   const keepSales = isManager && sp.sales ? `&sales=${sp.sales}` : "";
+
+  // Sales-share donut — only meaningful in the whole-team view.
+  const salesShareData: Slice[] =
+    isManager && !scopeId
+      ? (profiles ?? [])
+          .map((p) => ({ id: p.id, name: p.full_name, value: byUser.get(p.id)?.premium ?? 0 }))
+          .filter((p) => p.value > 0)
+          .sort((a, b) => b.value - a.value)
+          .map((p, i) => ({ label: p.name, value: p.value, color: PALETTE[i % PALETTE.length] }))
+      : [];
 
   const presets = [
     { key: "month", label: "เดือนนี้" },
@@ -270,6 +312,23 @@ export default async function DashboardHome({
         <Card label="โทรติดตาม" value={baht(scope.calls)} />
         <Card label="Win Rate" value={`${winRate(scope)}%`} sub={`Win ${scope.win} / Lost ${scope.lost}`} />
       </div>
+
+      {/* Collection / AR summary (manager) */}
+      {isManager && (
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Card label="เก็บเงินแล้ว (เบี้ยรวม)" value={baht(pay.collected)} sub={`${payCount.collected} รายการ`} accent="text-emerald-700" />
+          <Card label="ลูกหนี้ค้างชำระ (เบี้ยรวม)" value={baht(pay.awaiting)} sub={`${payCount.awaiting} รายการ`} accent="text-amber-600" />
+          <Card label="บริษัทประกันที่ขาย" value={`${byInsurer.size}`} sub="จำนวนบริษัท" />
+          <Card label="ประเภทขายมากสุด" value={categories[0]?.name ?? "-"} sub={categories[0] ? `${baht(categories[0].premium)} ฿` : ""} />
+        </div>
+      )}
+
+      {isManager && (
+        <>
+          <h2 className="mb-3 text-sm font-semibold text-slate-600">สรุปภาพรวม (กราฟ) — {label}</h2>
+          <DashboardCharts salesShare={salesShareData} insurers={insurerData} payment={paymentData} />
+        </>
+      )}
 
       <h2 className="mb-3 text-sm font-semibold text-slate-600">
         ประเภทกรมธรรม์ที่ขายได้ (ตามเบี้ยประกัน) — คลิกเพื่อดูรายการ

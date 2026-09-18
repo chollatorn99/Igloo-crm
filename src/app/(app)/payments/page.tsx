@@ -12,9 +12,9 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
 export default async function PaymentsQueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; from?: string; to?: string }>;
 }) {
-  const { status } = await searchParams;
+  const { status, from, to } = await searchParams;
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -35,6 +35,8 @@ export default async function PaymentsQueuePage({
     .order("closed_date", { ascending: false });
 
   if (status) query = query.eq("payment_status", status);
+  if (from) query = query.gte("closed_date", from);
+  if (to) query = query.lte("closed_date", to);
 
   const { data: policies } = await query;
 
@@ -82,18 +84,38 @@ export default async function PaymentsQueuePage({
         )}
       </div>
 
-      <div className="mb-4 flex gap-2">
-        {tabs.map((t) => (
-          <Link
-            key={t.key}
-            href={t.key ? `/payments?status=${t.key}` : "/payments"}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-              (status ?? "") === t.key ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            {t.label}
+      <form className="mb-3 flex flex-wrap items-center gap-2" action="/payments">
+        {status && <input type="hidden" name="status" value={status} />}
+        <span className="text-xs text-slate-400">วันแจ้งงาน:</span>
+        <input type="date" name="from" defaultValue={from ?? ""} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+        <span className="text-xs text-slate-400">ถึง</span>
+        <input type="date" name="to" defaultValue={to ?? ""} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
+        <button className="rounded-md bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800">กรอง</button>
+        {(from || to) && (
+          <Link href={status ? `/payments?status=${status}` : "/payments"} className="text-xs text-blue-600 hover:underline">
+            ล้างช่วงวัน
           </Link>
-        ))}
+        )}
+      </form>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {tabs.map((t) => {
+          const qs = new URLSearchParams();
+          if (t.key) qs.set("status", t.key);
+          if (from) qs.set("from", from);
+          if (to) qs.set("to", to);
+          return (
+            <Link
+              key={t.key}
+              href={`/payments${qs.toString() ? `?${qs.toString()}` : ""}`}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
+                (status ?? "") === t.key ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {t.label}
+            </Link>
+          );
+        })}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
