@@ -8,6 +8,7 @@ const MOTOR_CATS = ["Motor", "พรบ.รถ", "CAR", "พรบ.ปั้ม"
 
 type PolicyRow = {
   closed_date: string | null;
+  coverage_start_date: string | null;
   coverage_end_date: string | null;
   insurance_company: string | null;
   policy_detail: string | null;
@@ -36,7 +37,7 @@ export async function exportSalesReport(from: string, to: string) {
     const q = supabase
       .from("policies")
       .select(
-        "closed_date, coverage_end_date, insurance_company, policy_detail, net_premium, stamp_duty, vat, total_premium, payment_date, category:policy_categories(name), customer:customers!inner(name)",
+        "closed_date, coverage_start_date, coverage_end_date, insurance_company, policy_detail, net_premium, stamp_duty, vat, total_premium, payment_date, category:policy_categories(name), customer:customers!inner(name)",
       )
       .eq("deal_status", "win")
       .eq("is_prospect", false) // dealer prospects aren't our sales
@@ -52,12 +53,14 @@ export async function exportSalesReport(from: string, to: string) {
     .from("export_log")
     .insert({ user_id: user.id, export_type: "sales-report", row_count: policies.length, filter_note: `${from}..${to}` });
 
-  const rows = policies.map((p) => ({
+  const rows = policies.map((p, i) => ({
+    "ลำดับที่": i + 1,
     "ชื่อลูกค้า": p.customer?.name ?? "",
     "ประเภทประกัน": p.category?.name ?? "",
     "บริษัทประกัน": p.insurance_company ?? "",
     "ทะเบียน/รุ่นรถ": p.category && MOTOR_CATS.includes(p.category.name) ? (p.policy_detail ?? "") : "",
     "วันแจ้งงาน": p.closed_date ?? "",
+    "วันคุ้มครอง": p.coverage_start_date ?? "",
     "วันหมดอายุ": p.coverage_end_date ?? "",
     "เบี้ยสุทธิ": p.net_premium ?? 0,
     "อากรแสตมป์": p.stamp_duty ?? 0,
