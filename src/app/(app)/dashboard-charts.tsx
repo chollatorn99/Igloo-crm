@@ -76,9 +76,10 @@ function Donut({ title, data, unit = "฿" }: { title: string; data: Slice[]; un
 }
 
 // ---- Interactive horizontal bar list ----
-function BarList({ title, data, note }: { title: string; data: Slice[]; note?: string }) {
+function BarList({ title, data, note, count }: { title: string; data: Slice[]; note?: string; count?: boolean }) {
   const [active, setActive] = useState<number | null>(null);
   const max = Math.max(1, ...data.map((d) => d.value));
+  const fmt = (v: number) => (count ? `${v.toLocaleString("th-TH")} ราย` : baht(v));
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <p className="mb-2 text-sm font-semibold text-slate-600">{title}</p>
@@ -100,7 +101,7 @@ function BarList({ title, data, note }: { title: string; data: Slice[]; note?: s
                   style={{ width: `${(d.value / max) * 100}%`, background: d.color, opacity: active === null || active === i ? 1 : 0.4, transition: "opacity .15s" }}
                 />
               </div>
-              <span className="w-24 shrink-0 text-right font-mono text-slate-700">{baht(d.value)}</span>
+              <span className="w-24 shrink-0 text-right font-mono text-slate-700">{fmt(d.value)}</span>
             </div>
           ))}
         </div>
@@ -114,16 +115,19 @@ export function DashboardCharts({
   salesShare,
   insurers,
   payment,
+  brands,
 }: {
   salesShare: Slice[];
   insurers: Slice[];
   payment: Slice[];
+  brands: Slice[];
 }) {
   return (
     <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
       {salesShare.length > 0 && <Donut title="สัดส่วนยอดขายรายพนักงาน (เบี้ยสุทธิ)" data={salesShare} />}
       <Donut title="สถานะการเก็บเงิน (เบี้ยรวม)" data={payment} />
       <BarList title="บริษัทประกันขายมากสุด (เบี้ยสุทธิ)" data={insurers} note="Top 8 ตามเบี้ยประกันในช่วงที่เลือก" />
+      <BarList title="จำนวนรายที่ขายแยกตามแบรนด์รถ" data={brands} count note="อ่านจากรายละเอียดกรมธรรม์ (policy_detail)" />
     </div>
   );
 }

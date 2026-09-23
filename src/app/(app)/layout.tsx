@@ -31,7 +31,9 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   ],
   accounting: [
     { label: "หน้าหลัก (Dashboard)", href: "/" },
+    { label: "ลูกค้า", href: "/customers" },
     { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
+    { label: "บันทึกกิจกรรม", href: "/activity" },
   ],
   support: [
     { label: "หน้าหลัก (Dashboard)", href: "/" },

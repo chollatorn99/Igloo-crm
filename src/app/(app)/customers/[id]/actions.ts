@@ -65,6 +65,7 @@ export async function updateCustomerInfo(customerId: string, formData: FormData)
       phone: clean("phone"),
       email: clean("email"),
       address: clean("address"),
+      shipping_address: clean("shipping_address"),
       line_id: clean("line_id"),
       customer_type: formData.get("customer_type") === "organization" ? "organization" : "individual",
     })

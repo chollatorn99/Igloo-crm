@@ -9,13 +9,26 @@ type DashPolicyRow = {
   net_premium: number | null;
   total_premium: number | null;
   company_commission_amount: number | null;
+  agent_commission_amount: number | null;
+  customer_discount_amount: number | null;
+  net_commission_to_igloo: number | null;
   closed_date: string | null;
   category_id: string | null;
   insurance_company: string | null;
+  policy_detail: string | null;
   payment_status: string | null;
   category: { name: string } | null;
   customer: { owner_id: string } | null;
 };
+
+// Best-effort car-brand detection from the free-text policy_detail (there is no
+// structured brand column). First keyword wins; BENZ folds into MERCEDES.
+const BRANDS = ["BRG", "KIA", "NETA", "DEEPAL", "CHERY", "TOYOTA", "HONDA", "MAZDA", "ISUZU", "MG", "BYD", "NISSAN", "MITSUBISHI", "MERCEDES", "BENZ", "BMW", "FORD", "SUZUKI", "VOLVO", "GWM", "ORA", "HAVAL", "TESLA", "AION", "NETA", "VOLKSWAGEN", "LEXUS", "SUBARU"];
+function brandOf(detail: string | null): string | null {
+  const s = (detail ?? "").toUpperCase();
+  for (const b of BRANDS) if (s.includes(b)) return b === "BENZ" ? "MERCEDES" : b;
+  return null;
+}
 
 type Stat = {
   calls: number;
@@ -75,11 +88,11 @@ export default async function DashboardHome({
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user!.id).single();
+  const { data: profile } = await supabase.from("profiles").select("role, full_name, supports_owner_id").eq("id", user!.id).single();
   const isManager = profile?.role === "manager";
 
   const [{ data: profiles }, notes, policies] = await Promise.all([
-    supabase.from("profiles").select("id, full_name").in("role", ["sales", "manager"]).order("full_name"),
+    supabase.from("profiles").select("id, full_name, earns_commission").in("role", ["sales", "manager"]).order("full_name"),
     fetchAll<NoteRow>((f, t) => {
       // Count only real logged calls — exclude the one-off "[ยุบจากรายชื่อซ้ำ]"
       // notes created by the customer-dedup step (they aren't phone calls).
@@ -97,7 +110,7 @@ export default async function DashboardHome({
       let q = supabase
         .from("policies")
         .select(
-          "deal_status, net_premium, total_premium, company_commission_amount, closed_date, category_id, insurance_company, payment_status, category:policy_categories(name), customer:customers(owner_id)",
+          "deal_status, net_premium, total_premium, company_commission_amount, agent_commission_amount, customer_discount_amount, net_commission_to_igloo, closed_date, category_id, insurance_company, policy_detail, payment_status, category:policy_categories(name), customer:customers(owner_id)",
         )
         .in("deal_status", ["win", "lost"])
         .eq("is_prospect", false) // dealer-lead prospects are never our sales
@@ -159,18 +172,46 @@ export default async function DashboardHome({
     const o = p.customer?.owner_id;
     return !!o && (!scopeId || o === scopeId);
   };
+  const earners = new Set((profiles ?? []).filter((p) => (p as { earns_commission?: boolean }).earns_commission).map((p) => p.id));
   const byInsurer = new Map<string, number>();
+  const byBrand = new Map<string, number>();
   const pay = { collected: 0, awaiting: 0, rejected: 0 };
   const payCount = { collected: 0, awaiting: 0, rejected: 0 };
+  // Sales-promotion expense pieces + company net, all scoped.
+  const promo = { agent: 0, ownComm: 0, discount: 0 };
+  let companyCommGross = 0;
+  let netToIgloo = 0;
   for (const p of policies) {
     if (p.deal_status !== "win" || !inScope(p)) continue;
     const ins = (p.insurance_company ?? "").trim() || "ไม่ระบุบริษัท";
     byInsurer.set(ins, (byInsurer.get(ins) ?? 0) + Number(p.net_premium ?? 0));
+    const brand = brandOf(p.policy_detail);
+    if (brand) byBrand.set(brand, (byBrand.get(brand) ?? 0) + 1);
     const amt = Number(p.total_premium ?? 0);
     if (p.payment_status === "verified") { pay.collected += amt; payCount.collected++; }
     else if (p.payment_status === "awaiting_payment" || p.payment_status === "awaiting_verification") { pay.awaiting += amt; payCount.awaiting++; }
     else if (p.payment_status === "rejected") { pay.rejected += amt; payCount.rejected++; }
+    promo.agent += Number(p.agent_commission_amount ?? 0);
+    promo.discount += Number(p.customer_discount_amount ?? 0);
+    companyCommGross += Number(p.company_commission_amount ?? 0);
+    netToIgloo += Number(p.net_commission_to_igloo ?? 0);
+    if (earners.has(p.customer!.owner_id)) promo.ownComm += Number(p.company_commission_amount ?? 0);
   }
+  // Company net commission = what Igloo keeps AFTER paying a commission-earning
+  // salesperson (their company commission is passed through to them).
+  const companyNet = netToIgloo - promo.ownComm;
+  const brandData: Slice[] = [...byBrand.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value], i) => ({ label: name, value, color: PALETTE[i % PALETTE.length] }));
+  // Whose commission the "ค่าคอมของฉัน" figure represents: the scoped sales
+  // themselves, or — for a support user — the salesperson they assist.
+  const commissionOwnerId =
+    profile?.role === "support"
+      ? (profile as { supports_owner_id?: string }).supports_owner_id ?? null
+      : scopeId;
+  const scopeEarns = commissionOwnerId ? earners.has(commissionOwnerId) : false;
+  const commissionName = profile?.role === "support" ? profiles?.find((p) => p.id === commissionOwnerId)?.full_name ?? null : null;
+  const ownCommLabel = commissionName ? `ค่าคอมของ ${commissionName}` : "ค่าคอมของฉัน";
   const insurerData: Slice[] = [...byInsurer.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
@@ -304,31 +345,47 @@ export default async function DashboardHome({
       )}
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {/* Company commission = Igloo's revenue — manager-only. */}
-        {isManager && (
-          <Card label="ค่าคอมบริษัท (รายได้ Igloo)" value={baht(scope.commission)} accent="text-emerald-700" />
-        )}
         <Card label="เบี้ยประกันสุทธิ" value={baht(scope.premium)} />
         <Card label="โทรติดตาม" value={baht(scope.calls)} />
         <Card label="Win Rate" value={`${winRate(scope)}%`} sub={`Win ${scope.win} / Lost ${scope.lost}`} />
+        {/* A salesperson who personally earns commission (or the support user
+            who assists them) sees that commission. */}
+        {scopeEarns && <Card label={ownCommLabel} value={baht(scope.commission)} accent="text-emerald-700" />}
       </div>
 
-      {/* Collection / AR summary (manager) */}
+      {/* Sales-promotion expenses + company net (manager) */}
       {isManager && (
+        <>
+          <h2 className="mb-2 text-sm font-semibold text-slate-600">รายจ่ายส่งเสริมการขาย & รายได้ค่าคอม ({label})</h2>
+          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <Card label="ค่าคอมบริษัท (รับจากประกัน)" value={baht(companyCommGross)} />
+            <Card label="ค่าคอม Agent (จ่ายนายหน้า)" value={baht(promo.agent)} accent="text-rose-600" />
+            <Card label="ค่าคอมเซลส์ (พี่มุกฯ)" value={baht(promo.ownComm)} accent="text-rose-600" />
+            <Card label="ส่วนลดลูกค้า" value={baht(promo.discount)} accent="text-rose-600" />
+            <Card label="ค่าคอม Net บริษัท" value={baht(companyNet)} accent="text-emerald-700" sub="หลังหักรายจ่ายส่งเสริมการขาย" />
+          </div>
+        </>
+      )}
+
+      {/* Commission / discount summary for a salesperson viewing their own book */}
+      {!isManager && (
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Card label="เก็บเงินแล้ว (เบี้ยรวม)" value={baht(pay.collected)} sub={`${payCount.collected} รายการ`} accent="text-emerald-700" />
-          <Card label="ลูกหนี้ค้างชำระ (เบี้ยรวม)" value={baht(pay.awaiting)} sub={`${payCount.awaiting} รายการ`} accent="text-amber-600" />
-          <Card label="บริษัทประกันที่ขาย" value={`${byInsurer.size}`} sub="จำนวนบริษัท" />
-          <Card label="ประเภทขายมากสุด" value={categories[0]?.name ?? "-"} sub={categories[0] ? `${baht(categories[0].premium)} ฿` : ""} />
+          <Card label="ค่าคอม Agent (จ่ายนายหน้า)" value={baht(promo.agent)} />
+          <Card label="ส่วนลดที่ใช้" value={baht(promo.discount)} />
+          {scopeEarns && <Card label={ownCommLabel} value={baht(scope.commission)} accent="text-emerald-700" />}
         </div>
       )}
 
-      {isManager && (
-        <>
-          <h2 className="mb-3 text-sm font-semibold text-slate-600">สรุปภาพรวม (กราฟ) — {label}</h2>
-          <DashboardCharts salesShare={salesShareData} insurers={insurerData} payment={paymentData} />
-        </>
-      )}
+      {/* Collection / AR — for everyone, scoped */}
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Card label="เก็บเงินแล้ว (เบี้ยรวม)" value={baht(pay.collected)} sub={`${payCount.collected} รายการ`} accent="text-emerald-700" />
+        <Card label="ลูกหนี้ค้างชำระ (เบี้ยรวม)" value={baht(pay.awaiting)} sub={`${payCount.awaiting} รายการ`} accent="text-amber-600" />
+        <Card label="บริษัทประกันที่ขาย" value={`${byInsurer.size}`} sub="จำนวนบริษัท" />
+        <Card label="ประเภทขายมากสุด" value={categories[0]?.name ?? "-"} sub={categories[0] ? `${baht(categories[0].premium)} ฿` : ""} />
+      </div>
+
+      <h2 className="mb-3 text-sm font-semibold text-slate-600">สรุปภาพรวม (กราฟ) — {label}</h2>
+      <DashboardCharts salesShare={salesShareData} insurers={insurerData} payment={paymentData} brands={brandData} />
 
       <h2 className="mb-3 text-sm font-semibold text-slate-600">
         ประเภทกรมธรรม์ที่ขายได้ (ตามเบี้ยประกัน) — คลิกเพื่อดูรายการ

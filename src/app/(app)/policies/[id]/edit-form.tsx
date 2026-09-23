@@ -20,6 +20,11 @@ type Policy = {
   agent: { id: string } | null;
   agent_commission_rate: number | null;
   customer_discount_amount: number | null;
+  policy_received: boolean | null;
+  policy_received_date: string | null;
+  policy_sent: boolean | null;
+  tracking_number: string | null;
+  sent_date: string | null;
   notes: string | null;
 };
 
@@ -239,6 +244,35 @@ export function PolicyEditForm({
             defaultValue={policy.agent_commission_rate ?? ""}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
+        </div>
+      </div>
+
+      {/* Physical policy-document tracking */}
+      <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <p className="text-xs font-semibold text-slate-600">สถานะเอกสารกรมธรรม์</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" name="policy_received" defaultChecked={policy.policy_received ?? false} className="h-4 w-4" />
+            ได้รับกรมธรรม์จากบริษัทประกันแล้ว
+          </label>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">วันที่ได้รับ</label>
+            <input type="date" name="policy_received_date" defaultValue={policy.policy_received_date ?? ""} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" name="policy_sent" defaultChecked={policy.policy_sent ?? false} className="h-4 w-4" />
+            จัดส่งให้ลูกค้าแล้ว
+          </label>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">เลขไปรษณีย์ (tracking)</label>
+            <input name="tracking_number" defaultValue={policy.tracking_number ?? ""} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">วันที่ส่ง</label>
+            <input type="date" name="sent_date" defaultValue={policy.sent_date ?? ""} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          </div>
         </div>
       </div>
 

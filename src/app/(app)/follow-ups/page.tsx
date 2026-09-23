@@ -148,6 +148,7 @@ export default async function FollowUpsPage({
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
+              <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">ลูกค้า</th>
               <th className="px-4 py-3">เบอร์โทร</th>
               <th className="px-4 py-3">สถานะ</th>
@@ -157,8 +158,9 @@ export default async function FollowUpsPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map(([id, c]) => (
+            {rows.map(([id, c], i) => (
               <tr key={id} className="hover:bg-slate-50">
+                <td className="px-4 py-3 text-slate-400">{(page - 1) * PAGE_SIZE + i + 1}</td>
                 <td className="px-4 py-3">
                   <Link href={linkFor(id)} className="font-medium text-slate-900 hover:underline">
                     {c.name}
@@ -177,7 +179,7 @@ export default async function FollowUpsPage({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
                   ยังไม่มีการบันทึกติดตาม
                 </td>
               </tr>

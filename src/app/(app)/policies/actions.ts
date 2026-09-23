@@ -102,6 +102,12 @@ export async function updatePolicyDetails(policyId: string, formData: FormData):
       agent_id: strOrNull(formData.get("agent_id")),
       agent_commission_rate: numOrNull(formData.get("agent_commission_rate")),
       customer_discount_amount: numOrNull(formData.get("customer_discount_amount")) ?? 0,
+      // Physical document tracking.
+      policy_received: formData.get("policy_received") === "on",
+      policy_received_date: strOrNull(formData.get("policy_received_date")),
+      policy_sent: formData.get("policy_sent") === "on",
+      tracking_number: strOrNull(formData.get("tracking_number")),
+      sent_date: strOrNull(formData.get("sent_date")),
       notes: strOrNull(formData.get("notes")),
     })
     .eq("id", policyId);

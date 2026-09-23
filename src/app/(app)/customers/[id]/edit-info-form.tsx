@@ -9,6 +9,7 @@ type Customer = {
   phone: string | null;
   email: string | null;
   address: string | null;
+  shipping_address: string | null;
   line_id: string | null;
   customer_type: string;
 };
@@ -69,6 +70,10 @@ export function CustomerEditForm({ customer }: { customer: Customer }) {
       <div>
         <label className={label}>ที่อยู่</label>
         <textarea name="address" rows={2} defaultValue={customer.address ?? ""} className={field} />
+      </div>
+      <div>
+        <label className={label}>ที่อยู่จัดส่งเอกสาร (สำหรับจ่าหน้าซอง)</label>
+        <textarea name="shipping_address" rows={2} defaultValue={customer.shipping_address ?? ""} placeholder="เว้นว่าง = ใช้ที่อยู่ด้านบน" className={field} />
       </div>
       <div>
         <label className={label}>ประเภทลูกค้า</label>

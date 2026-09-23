@@ -25,7 +25,7 @@ export default async function CustomerDetailPage({
 
   const { data: customer } = await supabase
     .from("customers")
-    .select("id, name, phone, email, address, line_id, customer_type, call_count, last_call_result, owner_id, owner:profiles(full_name)")
+    .select("id, name, phone, email, address, shipping_address, line_id, customer_type, call_count, last_call_result, owner_id, owner:profiles(full_name)")
     .eq("id", id)
     .single();
 
@@ -76,6 +76,19 @@ export default async function CustomerDetailPage({
           {customer.last_call_result ? ` · ล่าสุด: ${customer.last_call_result}` : ""}
         </p>
 
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+          <Link
+            href={`/customers/${id}/envelope`}
+            target="_blank"
+            className="rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
+          >
+            🖨️ พิมพ์จ่าหน้าซอง (A4)
+          </Link>
+          {!(customer.shipping_address || customer.address) && (
+            <span className="text-xs text-amber-600">— ยังไม่มีที่อยู่จัดส่ง กรอกก่อนพิมพ์</span>
+          )}
+        </div>
+
         <CustomerEditForm
           customer={{
             id: customer.id,
@@ -83,6 +96,7 @@ export default async function CustomerDetailPage({
             phone: customer.phone,
             email: customer.email,
             address: customer.address,
+            shipping_address: customer.shipping_address,
             line_id: customer.line_id,
             customer_type: customer.customer_type,
           }}
