@@ -20,7 +20,8 @@ export default async function EnvelopePage({ params }: { params: Promise<{ id: s
   return (
     <div className="p-8">
       <style>{`
-        @page { size: A4 landscape; margin: 12mm; }
+        /* margin:0 makes Chrome drop the auto date / page-title / URL header-footer */
+        @page { size: A4 landscape; margin: 0; }
         @media print {
           body * { visibility: hidden !important; }
           #envelope, #envelope * { visibility: visible !important; }
@@ -31,7 +32,7 @@ export default async function EnvelopePage({ params }: { params: Promise<{ id: s
 
       <AutoPrint />
 
-      <div id="envelope" className="relative mx-auto flex min-h-[180mm] w-full max-w-[273mm] flex-col rounded border border-slate-200 bg-white p-12 print:border-0">
+      <div id="envelope" className="relative mx-auto flex min-h-[190mm] w-full max-w-[273mm] flex-col rounded border border-slate-200 bg-white p-12 print:min-h-[200mm] print:border-0 print:p-[16mm]">
         {/* Stamp box */}
         <div className="absolute right-12 top-10 h-24 w-20 rounded border-2 border-dashed border-slate-300 p-1 text-center text-[9px] leading-tight text-slate-300">
           ดวงตรา<br />ไปรษณียากร
@@ -49,9 +50,9 @@ export default async function EnvelopePage({ params }: { params: Promise<{ id: s
         {/* Recipient (lower-right, large) */}
         <div className="mt-auto ml-auto w-full max-w-[165mm] pb-6 pr-6">
           <p className="mb-2 text-base text-slate-400">กรุณาส่ง (To)</p>
-          <p className="text-3xl font-semibold text-slate-900">{c.name}</p>
-          <p className="mt-3 whitespace-pre-line text-xl leading-relaxed text-slate-800">{addr}</p>
-          {c.phone && <p className="mt-3 text-lg text-slate-600">โทร. {c.phone}</p>}
+          <p className="text-xl font-semibold leading-relaxed text-slate-900">{c.name}</p>
+          <p className="mt-2 whitespace-pre-line text-xl leading-relaxed text-slate-800">{addr}</p>
+          {c.phone && <p className="mt-2 text-xl leading-relaxed text-slate-700">โทร. {c.phone}</p>}
           <p className="mt-4 inline-block rounded bg-slate-100 px-2 py-0.5 text-sm text-slate-500">📄 เอกสารกรมธรรม์ + พ.ร.บ.</p>
         </div>
       </div>
