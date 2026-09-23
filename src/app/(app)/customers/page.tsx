@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Pagination } from "@/components/Pagination";
 import { LazyExportButton } from "./lazy-export-button";
+import { EnvelopeSelectTable } from "./envelope-select-table";
 
 type CustomerRow = {
   id: string;
@@ -80,45 +81,10 @@ export default async function CustomersPage({
 
       {error && <p className="mb-4 text-sm text-red-600">โหลดข้อมูลไม่สำเร็จ: {error.message}</p>}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-3">ชื่อ</th>
-              <th className="px-4 py-3">เบอร์โทร</th>
-              <th className="px-4 py-3">ประเภท</th>
-              <th className="px-4 py-3">เจ้าของ</th>
-              <th className="px-4 py-3">จำนวนครั้งที่โทร</th>
-              <th className="px-4 py-3">ผลล่าสุด</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {customers.map((c) => (
-              <tr key={c.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <Link href={`/customers/${c.id}`} className="font-medium text-slate-900 hover:underline">
-                    {c.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-600">{c.phone ?? "-"}</td>
-                <td className="px-4 py-3 text-slate-600">
-                  {c.customer_type === "organization" ? "องค์กร" : "บุคคล"}
-                </td>
-                <td className="px-4 py-3 text-slate-600">{c.owner?.full_name ?? "-"}</td>
-                <td className="px-4 py-3 text-slate-600">{c.call_count}</td>
-                <td className="px-4 py-3 text-slate-600">{c.last_call_result ?? "-"}</td>
-              </tr>
-            ))}
-            {customers.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                  {q ? "ไม่พบลูกค้าที่ค้นหา" : 'ยังไม่มีลูกค้า — กด "+ เพิ่มลูกค้า" เพื่อเริ่ม'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <EnvelopeSelectTable
+        customers={customers}
+        emptyText={q ? "ไม่พบลูกค้าที่ค้นหา" : 'ยังไม่มีลูกค้า — กด "+ เพิ่มลูกค้า" เพื่อเริ่ม'}
+      />
 
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} params={{ q }} />
     </div>
