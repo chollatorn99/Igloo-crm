@@ -200,9 +200,17 @@ export default async function DashboardHome({
   // Company net commission = what Igloo keeps AFTER paying a commission-earning
   // salesperson (their company commission is passed through to them).
   const companyNet = netToIgloo - promo.ownComm;
+  // Drill-down link into the policy list, carrying the current window + scope.
+  const drillHref = (extra: Record<string, string>) => {
+    const p = new URLSearchParams(extra);
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
+    if (scopeId) p.set("owner", scopeId);
+    return `/policies?${p.toString()}`;
+  };
   const brandData: Slice[] = [...byBrand.entries()]
     .sort((a, b) => b[1] - a[1])
-    .map(([name, value], i) => ({ label: name, value, color: PALETTE[i % PALETTE.length] }));
+    .map(([name, value], i) => ({ label: name, value, color: PALETTE[i % PALETTE.length], href: drillHref({ brand: name }) }));
   // Whose commission the "ค่าคอมของฉัน" figure represents: the scoped sales
   // themselves, or — for a support user — the salesperson they assist.
   const commissionOwnerId =
@@ -215,7 +223,7 @@ export default async function DashboardHome({
   const insurerData: Slice[] = [...byInsurer.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
-    .map(([name, value], i) => ({ label: name, value, color: PALETTE[i % PALETTE.length] }));
+    .map(([name, value], i) => ({ label: name, value, color: PALETTE[i % PALETTE.length], href: drillHref({ insurer: name }) }));
   const paymentData: Slice[] = [
     { label: "เก็บแล้ว (ตรวจสอบแล้ว)", value: pay.collected, color: "#16a34a" },
     { label: "ลูกหนี้ (ค้างชำระ/รอตรวจ)", value: pay.awaiting, color: "#d97706" },

@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
-export type Slice = { label: string; value: number; color: string };
+export type Slice = { label: string; value: number; color: string; href?: string };
 
 const baht = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 0 });
 
@@ -87,23 +88,30 @@ function BarList({ title, data, note, count }: { title: string; data: Slice[]; n
         <p className="py-10 text-center text-sm text-slate-400">ไม่มีข้อมูล</p>
       ) : (
         <div className="space-y-1.5">
-          {data.map((d, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-2 text-xs"
-              onMouseEnter={() => setActive(i)}
-              onMouseLeave={() => setActive(null)}
-            >
-              <span className="w-28 shrink-0 truncate text-slate-600" title={d.label}>{d.label}</span>
-              <div className="h-5 flex-1 overflow-hidden rounded bg-slate-100">
-                <div
-                  className="h-full rounded"
-                  style={{ width: `${(d.value / max) * 100}%`, background: d.color, opacity: active === null || active === i ? 1 : 0.4, transition: "opacity .15s" }}
-                />
+          {data.map((d, i) => {
+            const inner = (
+              <>
+                <span className="w-28 shrink-0 truncate text-slate-600" title={d.label}>{d.label}</span>
+                <div className="h-5 flex-1 overflow-hidden rounded bg-slate-100">
+                  <div
+                    className="h-full rounded"
+                    style={{ width: `${(d.value / max) * 100}%`, background: d.color, opacity: active === null || active === i ? 1 : 0.4, transition: "opacity .15s" }}
+                  />
+                </div>
+                <span className="w-24 shrink-0 text-right font-mono text-slate-700">{fmt(d.value)}</span>
+              </>
+            );
+            const cls = "flex items-center gap-2 rounded px-1 py-0.5 text-xs";
+            return d.href ? (
+              <Link key={i} href={d.href} className={`${cls} hover:bg-slate-50`} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)}>
+                {inner}
+              </Link>
+            ) : (
+              <div key={i} className={cls} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)}>
+                {inner}
               </div>
-              <span className="w-24 shrink-0 text-right font-mono text-slate-700">{fmt(d.value)}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       {note && <p className="mt-2 text-xs text-slate-400">{note}</p>}
@@ -126,8 +134,8 @@ export function DashboardCharts({
     <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
       {salesShare.length > 0 && <Donut title="สัดส่วนยอดขายรายพนักงาน (เบี้ยสุทธิ)" data={salesShare} />}
       <Donut title="สถานะการเก็บเงิน (เบี้ยรวม)" data={payment} />
-      <BarList title="บริษัทประกันขายมากสุด (เบี้ยสุทธิ)" data={insurers} note="Top 8 ตามเบี้ยประกันในช่วงที่เลือก" />
-      <BarList title="จำนวนรายที่ขายแยกตามแบรนด์รถ" data={brands} count note="อ่านจากรายละเอียดกรมธรรม์ (policy_detail)" />
+      <BarList title="บริษัทประกันขายมากสุด (เบี้ยสุทธิ)" data={insurers} note="Top 8 · คลิกแถวเพื่อดูรายการ" />
+      <BarList title="จำนวนรายที่ขายแยกตามแบรนด์รถ" data={brands} count note="อ่านจาก policy_detail · คลิกแถวเพื่อดูรายการ" />
     </div>
   );
 }

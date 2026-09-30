@@ -21,9 +21,9 @@ const RENEWAL_LABEL: Record<string, string> = { pending: "รอติดตา�
 export default async function PoliciesListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category_id?: string; from?: string; to?: string; owner?: string }>;
+  searchParams: Promise<{ category_id?: string; from?: string; to?: string; owner?: string; insurer?: string; brand?: string }>;
 }) {
-  const { category_id, from, to, owner } = await searchParams;
+  const { category_id, from, to, owner, insurer, brand } = await searchParams;
   const supabase = await createClient();
 
   let categoryName = "";
@@ -44,10 +44,13 @@ export default async function PoliciesListPage({
         "id, net_premium, closed_date, coverage_end_date, insurance_company, renewal_outcome, category:policy_categories(name), customer:customers!inner(id, name, owner_id)",
       )
       .eq("deal_status", "win")
+      .eq("is_prospect", false) // match the dashboard (prospects aren't our sales)
       .order("closed_date", { ascending: false })
       .range(f, t);
     if (category_id) q = q.eq("category_id", category_id);
     if (owner) q = q.eq("customer.owner_id", owner);
+    if (insurer) q = q.eq("insurance_company", insurer);
+    if (brand) q = q.ilike("policy_detail", `%${brand.replace(/[%,()]/g, "")}%`);
     if (from) q = q.gte("closed_date", from);
     if (to) q = q.lte("closed_date", to);
     return q as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>;
@@ -62,6 +65,8 @@ export default async function PoliciesListPage({
       </Link>
       <h1 className="text-lg font-semibold text-slate-900">
         กรมธรรม์{categoryName ? ` ประเภท ${categoryName}` : ""}
+        {insurer ? ` · บริษัท ${insurer}` : ""}
+        {brand ? ` · แบรนด์ ${brand}` : ""}
       </h1>
       <p className="mb-6 text-xs text-slate-500">
         {rows.length} รายการ{ownerName ? ` · Sales: ${ownerName}` : ""}{from && to ? ` · ${from} ถึง ${to}` : ""} · รวมเบี้ย {baht(total)} บาท
