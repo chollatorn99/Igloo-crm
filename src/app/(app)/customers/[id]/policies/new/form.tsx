@@ -19,6 +19,7 @@ export function NewPolicyForm({
   const [stamp, setStamp] = useState(0);
   const [vat, setVat] = useState(0);
   const totalPremium = net + stamp + vat;
+  const [withPrb, setWithPrb] = useState(false);
 
   async function handleSubmit(formData: FormData) {
     setSubmitting(true);
@@ -89,6 +90,20 @@ export function NewPolicyForm({
         <span className="font-mono font-semibold text-slate-900">
           {totalPremium.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
         </span>
+      </div>
+
+      {/* Issue the compulsory พ.ร.บ. together with this voluntary motor policy */}
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" name="with_prb" checked={withPrb} onChange={(e) => setWithPrb(e.target.checked)} className="h-4 w-4" />
+          ออก พ.ร.บ. รถ ด้วย (สร้างกรมธรรม์ พรบ.รถ เพิ่มอีก 1 ใบ)
+        </label>
+        {withPrb && (
+          <div className="mt-2 w-48">
+            <label className="mb-1 block text-xs font-medium text-slate-600">เบี้ย พ.ร.บ. (สุทธิ)</label>
+            <input type="number" step="0.01" name="prb_premium" defaultValue={600} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

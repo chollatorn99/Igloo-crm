@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { addFollowUpNote, reassignOwner } from "./actions";
+import { deleteCustomer } from "../actions";
 import { ActionForm } from "@/components/ActionForm";
 import { CustomerEditForm } from "./edit-info-form";
 
@@ -25,7 +26,7 @@ export default async function CustomerDetailPage({
 
   const { data: customer } = await supabase
     .from("customers")
-    .select("id, name, phone, email, address, shipping_address, line_id, customer_type, call_count, last_call_result, owner_id, owner:profiles(full_name)")
+    .select("id, name, phone, email, address, shipping_address, line_id, customer_type, call_count, last_call_result, owner_id, created_by, owner:profiles(full_name)")
     .eq("id", id)
     .single();
 
@@ -54,6 +55,11 @@ export default async function CustomerDetailPage({
 
   const addNote = addFollowUpNote.bind(null, id);
   const reassign = reassignOwner.bind(null, id);
+  const removeCustomer = deleteCustomer.bind(null, id);
+  // Delete only a customer you created (or as manager), and only when nothing is
+  // attached — the action re-checks server-side + RLS enforces it.
+  const canDelete =
+    (isManager || customer.created_by === user!.id) && (policies?.length ?? 0) === 0;
 
   return (
     <div className="mx-auto max-w-2xl p-8">
@@ -86,6 +92,13 @@ export default async function CustomerDetailPage({
           </Link>
           {!(customer.shipping_address || customer.address) && (
             <span className="text-xs text-amber-600">— ยังไม่มีที่อยู่จัดส่ง กรอกก่อนพิมพ์</span>
+          )}
+          {canDelete && (
+            <ActionForm action={removeCustomer} confirmMessage={`ลบลูกค้า "${customer.name}"? (ลบไม่ได้ถ้ามีกรมธรรม์)`}>
+              <button className="rounded-md bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100">
+                🗑️ ลบลูกค้า
+              </button>
+            </ActionForm>
           )}
         </div>
 

@@ -67,6 +67,26 @@ export async function createPolicy(customerId: string, formData: FormData): Prom
 
   if (error) return { error: error.message };
 
+  // Optionally issue the compulsory พ.ร.บ. alongside the voluntary motor policy,
+  // ticked on the same form, so staff enter both in one go.
+  if (formData.get("with_prb") === "on") {
+    const { data: prbCat } = await supabase.from("policy_categories").select("id").eq("name", "พรบ.รถ").single();
+    if (prbCat) {
+      await supabase.from("policies").insert({
+        customer_id: customerId,
+        category_id: prbCat.id,
+        insurance_company: strOrNull(formData.get("insurance_company")),
+        policy_detail: strOrNull(formData.get("policy_detail")),
+        coverage_start_date: strOrNull(formData.get("coverage_start_date")),
+        coverage_end_date: strOrNull(formData.get("coverage_end_date")),
+        net_premium: numOrNull(formData.get("prb_premium")) ?? 600,
+        stamp_duty: 0,
+        vat: 0,
+        notes: "พ.ร.บ. (ออกพร้อมประกันสมัครใจ)",
+      });
+    }
+  }
+
   const lbl = await policyLabel(supabase, data.id);
   await logActivity(supabase, {
     action: "policy_created",
@@ -205,6 +225,7 @@ export async function reportPaymentTransfer(policyId: string, formData: FormData
       payment_status: "awaiting_verification",
       payment_reference: strOrNull(formData.get("payment_reference")),
       payment_date: strOrNull(formData.get("payment_date")),
+      amount_received: numOrNull(formData.get("amount_received")),
       payment_method: method,
       installment_count: takesInstallments ? numOrNull(formData.get("installment_count")) : null,
       installment_amount:

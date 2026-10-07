@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ExportButton } from "./export-button";
+import { PaymentsTable, type PayRow } from "./payments-table";
 
 const PAYMENT_STATUS_LABEL: Record<string, string> = {
   awaiting_payment: "รอลูกค้าชำระ",
@@ -28,7 +29,7 @@ export default async function PaymentsQueuePage({
   let query = supabase
     .from("policies")
     .select(
-      "id, payment_status, payment_reference, payment_date, net_premium, company_commission_amount, agent_commission_amount, net_commission_to_igloo, closed_date, category:policy_categories(name), customer:customers(id, name)",
+      "id, payment_status, payment_reference, payment_date, amount_received, net_premium, total_premium, company_commission_amount, agent_commission_amount, net_commission_to_igloo, closed_date, category:policy_categories(name), customer:customers(id, name)",
     )
     .eq("deal_status", "win")
     .not("payment_status", "is", null)
@@ -118,61 +119,26 @@ export default async function PaymentsQueuePage({
         })}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-3">ลูกค้า</th>
-              <th className="px-4 py-3">ประเภท</th>
-              <th className="px-4 py-3">เบี้ยประกัน</th>
-              {isManager && <th className="px-4 py-3">ค่าคอมสุทธิ</th>}
-              <th className="px-4 py-3">สถานะ</th>
-              <th className="px-4 py-3">เลขอ้างอิง</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {policies?.map((p) => (
-              <tr key={p.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <Link href={`/policies/${p.id}`} className="font-medium text-slate-900 hover:underline">
-                    {(p.customer as unknown as { name: string } | null)?.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-slate-600">{(p.category as unknown as { name: string } | null)?.name}</td>
-                <td className="px-4 py-3 font-mono text-slate-600">
-                  {Number(p.net_premium ?? 0).toLocaleString()}
-                </td>
-                {isManager && (
-                  <td className="px-4 py-3 font-mono text-slate-600">
-                    {Number(p.net_commission_to_igloo ?? 0).toLocaleString()}
-                  </td>
-                )}
-                <td className="px-4 py-3">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      p.payment_status === "verified"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : p.payment_status === "rejected"
-                          ? "bg-rose-100 text-rose-700"
-                          : "bg-amber-100 text-amber-700"
-                    }`}
-                  >
-                    {PAYMENT_STATUS_LABEL[p.payment_status as string] ?? "-"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.payment_reference ?? "-"}</td>
-              </tr>
-            ))}
-            {policies?.length === 0 && (
-              <tr>
-                <td colSpan={isManager ? 6 : 5} className="px-4 py-10 text-center text-slate-400">
-                  ไม่มีรายการ
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <p className="mb-3 text-xs text-slate-400">
+        ติ๊กเลือกรายการสถานะ &quot;รอลูกค้าชำระ&quot; แล้วกด &quot;แจ้งชำระรวม&quot; เพื่อบันทึกการโอนครั้งเดียวสำหรับลูกค้าที่จ่ายหลายกรมธรรม์พร้อมกัน
+      </p>
+
+      <PaymentsTable
+        isManager={isManager}
+        rows={(policies ?? []).map((p): PayRow => ({
+          id: p.id,
+          customer_id: (p.customer as unknown as { id: string } | null)?.id ?? null,
+          customer_name: (p.customer as unknown as { name: string } | null)?.name ?? null,
+          category: (p.category as unknown as { name: string } | null)?.name ?? null,
+          net_premium: p.net_premium as number | null,
+          total_premium: (p as { total_premium?: number | null }).total_premium ?? null,
+          net_commission_to_igloo: p.net_commission_to_igloo as number | null,
+          payment_status: p.payment_status as string | null,
+          payment_reference: p.payment_reference as string | null,
+          payment_date: p.payment_date as string | null,
+          amount_received: (p as { amount_received?: number | null }).amount_received ?? null,
+        }))}
+      />
     </div>
   );
 }

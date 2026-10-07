@@ -79,7 +79,7 @@ export async function createCustomer(formData: FormData): Promise<{ error?: stri
 
   const { data, error } = await supabase
     .from("customers")
-    .insert({ name, phone, customer_type, owner_id })
+    .insert({ name, phone, customer_type, owner_id, created_by: user.id })
     .select("id")
     .single();
 
@@ -93,4 +93,23 @@ export async function createCustomer(formData: FormData): Promise<{ error?: stri
   });
 
   redirect(`/customers/${data.id}`);
+}
+
+// Delete a customer. RLS (customers_delete) restricts this to a manager or the
+// person who created the row. We refuse if any policy is attached, so financial
+// records are never wiped by a cleanup delete.
+export async function deleteCustomer(customerId: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const { count } = await supabase
+    .from("policies")
+    .select("id", { count: "exact", head: true })
+    .eq("customer_id", customerId);
+  if ((count ?? 0) > 0) return { error: "ลบไม่ได้ — ลูกค้ารายนี้มีกรมธรรม์ผูกอยู่ (ลบกรมธรรม์ก่อน)" };
+
+  const { error } = await supabase.from("customers").delete().eq("id", customerId);
+  if (error) return { error: error.message };
+  redirect("/customers");
 }

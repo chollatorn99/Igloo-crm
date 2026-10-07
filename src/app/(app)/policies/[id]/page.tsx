@@ -50,7 +50,7 @@ export default async function PolicyDetailPage({
   const { data: policy } = await supabase
     .from("policies")
     .select(
-      "*, category:policy_categories(id, name), customer:customers(id, name, owner_id), agent:agents(id, name), verifier:profiles!policies_verified_by_fkey(full_name)",
+      "*, category:policy_categories(id, name), customer:customers(id, name, owner_id, is_shared), agent:agents(id, name), verifier:profiles!policies_verified_by_fkey(full_name)",
     )
     .eq("id", id)
     .single();
@@ -63,10 +63,13 @@ export default async function PolicyDetailPage({
   ]);
 
   const role = profile?.role;
-  const customer = policy.customer as unknown as { id: string; name: string; owner_id: string };
+  const customer = policy.customer as unknown as { id: string; name: string; owner_id: string; is_shared: boolean };
   // Support only ever loads policies of the salesperson they assist (enforced
-  // by RLS), so role === "support" here already implies an allowed policy.
-  const isOwnerOrManager = role === "manager" || role === "support" || customer.owner_id === user!.id;
+  // by RLS), so role === "support" here already implies an allowed policy. A
+  // salesperson may also act on a SHARED prospect (e.g. Jenjira renewing a
+  // dealer prospect she doesn't own) — the renew/outcome RLS allows it.
+  const isOwnerOrManager =
+    role === "manager" || role === "support" || customer.owner_id === user!.id || (role === "sales" && customer.is_shared);
 
   const markWin = setDealStatus.bind(null, id, "win");
   const markLost = setDealStatus.bind(null, id, "lost");
