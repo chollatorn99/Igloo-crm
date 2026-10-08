@@ -2,8 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { NewClaimForm } from "./form";
 
-export default async function NewClaimPage({ searchParams }: { searchParams: Promise<{ customer?: string; q?: string }> }) {
-  const { customer, q } = await searchParams;
+export default async function NewClaimPage({ searchParams }: { searchParams: Promise<{ customer?: string; q?: string; from?: string }> }) {
+  const { customer, q, from } = await searchParams;
   const supabase = await createClient();
 
   // No customer chosen yet → search & pick one right here.
@@ -61,7 +61,7 @@ export default async function NewClaimPage({ searchParams }: { searchParams: Pro
             const cats = g && g.cats.size ? [...g.cats].join(", ") : "— ไม่มีกรมธรรม์ที่ยังมีผล";
             const year = g?.latestStart ? g.latestStart.slice(0, 4) : null;
             return (
-              <Link key={c.id} href={`/claims/new?customer=${c.id}`} className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-slate-50">
+              <Link key={c.id} href={`/claims/new?customer=${c.id}&from=claims`} className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-slate-50">
                 <div className="min-w-0">
                   <p className="font-medium text-slate-900">{c.name}</p>
                   <p className="text-xs text-slate-500">
@@ -93,7 +93,9 @@ export default async function NewClaimPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="mx-auto max-w-2xl p-8">
-      <Link href={`/customers/${customer}`} className="mb-4 inline-block text-xs text-slate-500 hover:underline">← กลับหน้าลูกค้า</Link>
+      <Link href={from === "claims" ? "/claims" : `/customers/${customer}`} className="mb-4 inline-block text-xs text-slate-500 hover:underline">
+        {from === "claims" ? "← กลับหน้าเคลม" : "← กลับหน้าลูกค้า"}
+      </Link>
       <h1 className="mb-4 text-lg font-semibold text-slate-900">แจ้งเคลมใหม่</h1>
       <NewClaimForm customerId={customer} customerName={cust?.name ?? "-"} policies={policies} />
     </div>
