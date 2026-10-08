@@ -254,6 +254,23 @@ export default async function DashboardHome({
     if (backQS) p.set("back", backQS);
     return `/policies?${p.toString()}`;
   };
+  // Drill to one salesperson's policies in the window (sales-share donut).
+  const ownerHref = (id: string) => {
+    const p = new URLSearchParams();
+    p.set("owner", id);
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
+    if (backQS) p.set("back", backQS);
+    return `/policies?${p.toString()}`;
+  };
+  // Drill to the payment queue filtered by status (collection donut).
+  const payHref = (status?: string) => {
+    const p = new URLSearchParams();
+    if (status) p.set("status", status);
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
+    return `/payments?${p.toString()}`;
+  };
   // Renewal-due drill: filters the policy list by coverage_end window + brand.
   const renewHref = (brand?: string) => {
     const p = new URLSearchParams();
@@ -281,9 +298,9 @@ export default async function DashboardHome({
     .slice(0, 8)
     .map(([name, value], i) => ({ label: name, value, color: PALETTE[i % PALETTE.length], href: drillHref({ insurer: name }) }));
   const paymentData: Slice[] = [
-    { label: "เก็บแล้ว (ตรวจสอบแล้ว)", value: pay.collected, color: "#16a34a" },
-    { label: "ลูกหนี้ (ค้างชำระ/รอตรวจ)", value: pay.awaiting, color: "#d97706" },
-    { label: "สลิปไม่ผ่าน", value: pay.rejected, color: "#dc2626" },
+    { label: "เก็บแล้ว (ตรวจสอบแล้ว)", value: pay.collected, color: "#16a34a", href: payHref("verified") },
+    { label: "ลูกหนี้ (ค้างชำระ/รอตรวจ)", value: pay.awaiting, color: "#d97706", href: payHref() },
+    { label: "สลิปไม่ผ่าน", value: pay.rejected, color: "#dc2626", href: payHref("rejected") },
   ].filter((s) => s.value > 0);
 
   const totals = [...byUser.values()].reduce((acc, s) => {
@@ -329,7 +346,7 @@ export default async function DashboardHome({
           .map((p) => ({ id: p.id, name: p.full_name, value: byUser.get(p.id)?.premium ?? 0 }))
           .filter((p) => p.value > 0)
           .sort((a, b) => b.value - a.value)
-          .map((p, i) => ({ label: p.name, value: p.value, color: PALETTE[i % PALETTE.length] }))
+          .map((p, i) => ({ label: p.name, value: p.value, color: PALETTE[i % PALETTE.length], href: ownerHref(p.id) }))
       : [];
 
   // Category-premium donut — shown to everyone (so a single salesperson, who has

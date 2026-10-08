@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export type Slice = { label: string; value: number; color: string; href?: string };
@@ -10,6 +11,7 @@ const baht = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 0
 // ---- Interactive donut (hover a slice → center shows its label/value/%) ----
 function Donut({ title, data, unit = "฿" }: { title: string; data: Slice[]; unit?: string }) {
   const [active, setActive] = useState<number | null>(null);
+  const router = useRouter();
   const total = data.reduce((s, d) => s + d.value, 0);
   const size = 180, r = 80, rIn = 52, cx = size / 2, cy = size / 2;
   let angle = -Math.PI / 2;
@@ -44,7 +46,8 @@ function Donut({ title, data, unit = "฿" }: { title: string; data: Slice[]; un
                 opacity={active === null || active === i ? 1 : 0.35}
                 onMouseEnter={() => setActive(i)}
                 onMouseLeave={() => setActive(null)}
-                style={{ transition: "opacity .15s", cursor: "default" }}
+                onClick={() => s.href && router.push(s.href)}
+                style={{ transition: "opacity .15s", cursor: s.href ? "pointer" : "default" }}
               />
             ))}
             <text x={cx} y={cy - 6} textAnchor="middle" className="fill-slate-900" style={{ fontSize: 13, fontWeight: 600 }}>
@@ -55,20 +58,26 @@ function Donut({ title, data, unit = "฿" }: { title: string; data: Slice[]; un
             </text>
           </svg>
           <div className="min-w-0 flex-1 space-y-1">
-            {seg.map((s, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-2 rounded px-1.5 py-1 text-xs"
-                onMouseEnter={() => setActive(i)}
-                onMouseLeave={() => setActive(null)}
-                style={{ background: active === i ? "#f1f5f9" : undefined }}
-              >
-                <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: s.color }} />
-                <span className="min-w-0 flex-1 truncate text-slate-600" title={s.label}>{s.label}</span>
-                <span className="shrink-0 font-mono text-slate-700">{baht(s.value)}</span>
-                <span className="w-9 shrink-0 text-right text-slate-400">{Math.round(s.frac * 100)}%</span>
-              </div>
-            ))}
+            {seg.map((s, i) => {
+              const row = (
+                <>
+                  <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: s.color }} />
+                  <span className="min-w-0 flex-1 truncate text-slate-600" title={s.label}>{s.label}</span>
+                  <span className="shrink-0 font-mono text-slate-700">{baht(s.value)}</span>
+                  <span className="w-9 shrink-0 text-right text-slate-400">{Math.round(s.frac * 100)}%</span>
+                </>
+              );
+              const cls = "flex items-center gap-2 rounded px-1.5 py-1 text-xs";
+              return s.href ? (
+                <Link key={i} href={s.href} className={`${cls} hover:bg-slate-100`} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)} style={{ background: active === i ? "#f1f5f9" : undefined }}>
+                  {row}
+                </Link>
+              ) : (
+                <div key={i} className={cls} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)} style={{ background: active === i ? "#f1f5f9" : undefined }}>
+                  {row}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
