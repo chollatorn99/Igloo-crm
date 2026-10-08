@@ -33,7 +33,7 @@ export default async function CustomersPage({
   // loading all ~2000 rows into the DOM on every visit.
   let query = supabase
     .from("customers")
-    .select("id, name, phone, customer_type, call_count, last_call_result, owner:profiles(full_name)", {
+    .select("id, name, phone, customer_type, call_count, last_call_result, owner:profiles!customers_owner_id_fkey(full_name)", {
       count: "exact",
     })
     .order("created_at", { ascending: false })

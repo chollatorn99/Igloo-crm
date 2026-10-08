@@ -26,7 +26,7 @@ export async function exportCustomers(
   const dataRows = await fetchAll<CustomerExportRow>((from, to) => {
     let query = supabase
       .from("customers")
-      .select("name, phone, customer_type, call_count, last_call_result, owner:profiles(full_name)")
+      .select("name, phone, customer_type, call_count, last_call_result, owner:profiles!customers_owner_id_fkey(full_name)")
       .order("created_at", { ascending: false })
       .range(from, to);
     if (q?.trim()) {

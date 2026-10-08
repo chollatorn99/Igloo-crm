@@ -58,7 +58,7 @@ export default async function RenewalsPage({
     let query = supabase
       .from("policies")
       .select(
-        "id, coverage_end_date, insurance_company, policy_detail, net_premium, category:policy_categories(name, renewal_reminder_days), customer:customers!inner(id, name, phone, owner_id, owner:profiles(full_name))",
+        "id, coverage_end_date, insurance_company, policy_detail, net_premium, category:policy_categories(name, renewal_reminder_days), customer:customers!inner(id, name, phone, owner_id, owner:profiles!customers_owner_id_fkey(full_name))",
       )
       .eq("deal_status", "win")
       // Only still-open follow-ups: once sales marks the outcome (ต่อแล้ว /
