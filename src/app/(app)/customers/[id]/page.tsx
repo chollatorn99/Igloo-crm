@@ -90,6 +90,12 @@ export default async function CustomerDetailPage({
           >
             🖨️ พิมพ์จ่าหน้าซอง (A4)
           </Link>
+          <Link
+            href={`/claims/new?customer=${id}`}
+            className="rounded-md bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
+          >
+            + แจ้งเคลม
+          </Link>
           {!(customer.shipping_address || customer.address) && (
             <span className="text-xs text-amber-600">— ยังไม่มีที่อยู่จัดส่ง กรอกก่อนพิมพ์</span>
           )}
