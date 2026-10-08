@@ -32,11 +32,13 @@ export default async function NewClaimPage({ searchParams }: { searchParams: Pro
       // Enrich with each customer's policy types + current coverage year, so
       // staff can tell near-identical company names apart.
       if (results.length) {
+        const todayStr = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
         const { data: pols } = await supabase
           .from("policies")
           .select("customer_id, coverage_start_date, coverage_end_date, category:policy_categories(name)")
           .in("customer_id", results.map((r) => r.id))
-          .eq("deal_status", "win");
+          .eq("deal_status", "win")
+          .gte("coverage_end_date", todayStr); // only policies still in force
         for (const p of (pols ?? []) as unknown as { customer_id: string; coverage_start_date: string | null; coverage_end_date: string | null; category: { name: string } | null }[]) {
           const g = info.get(p.customer_id) ?? { cats: new Set<string>(), latestStart: null, latestEnd: null };
           if (p.category?.name) g.cats.add(p.category.name);
@@ -56,7 +58,7 @@ export default async function NewClaimPage({ searchParams }: { searchParams: Pro
         <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
           {results.map((c) => {
             const g = info.get(c.id);
-            const cats = g && g.cats.size ? [...g.cats].join(", ") : "ยังไม่มีกรมธรรม์";
+            const cats = g && g.cats.size ? [...g.cats].join(", ") : "— ไม่มีกรมธรรม์ที่ยังมีผล";
             const year = g?.latestStart ? g.latestStart.slice(0, 4) : null;
             return (
               <Link key={c.id} href={`/claims/new?customer=${c.id}`} className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-slate-50">
