@@ -48,7 +48,7 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
             เคลม: <Link href={`/customers/${c.customer?.id}`} className="hover:underline">{c.customer?.name ?? "-"}</Link>
           </h1>
           <p className="text-xs text-slate-500">
-            {c.claim_number ? `เลขเคลม ${c.claim_number} · ` : ""}สถานะ: {CLAIM_STATUS_LABEL[c.status] ?? c.status} · เจ้าของ {c.owner?.full_name ?? "-"}
+            {c.claimant_name ? `ผู้ทำเคลม: ${c.claimant_name} · ` : ""}{c.claim_number ? `เลขเคลม ${c.claim_number} · ` : ""}สถานะ: {CLAIM_STATUS_LABEL[c.status] ?? c.status} · เจ้าของ {c.owner?.full_name ?? "-"}
           </p>
         </div>
         {canDelete && (
@@ -88,6 +88,11 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
             <label className={lbl}>ยอดเคลม</label>
             <input type="number" step="0.01" name="claim_amount" defaultValue={(c.claim_amount as number) ?? ""} className={field} />
           </div>
+        </div>
+
+        <div>
+          <label className={lbl}>ผู้ทำเคลม (ชื่อสมาชิกในกลุ่ม — กรณีประกันกลุ่ม)</label>
+          <input name="claimant_name" defaultValue={(c.claimant_name as string) ?? ""} placeholder="เว้นว่างได้ถ้าเป็นลูกค้ารายบุคคล" className={field} />
         </div>
 
         <div>

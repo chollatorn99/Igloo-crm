@@ -6,6 +6,7 @@ import { ClaimsExport } from "./claims-export";
 type ClaimRow = {
   id: string;
   claim_number: string | null;
+  claimant_name: string | null;
   status: string;
   detail: string | null;
   reported_date: string | null;
@@ -33,7 +34,7 @@ export default async function ClaimsPage({
   // Fetch all visible claims once (RLS-scoped) → summary + filtered table in JS.
   const { data } = await supabase
     .from("claims")
-    .select("id, claim_number, status, detail, reported_date, paid_date, next_followup_date, claim_amount, customer:customers!inner(name), owner:profiles!claims_owner_id_fkey(full_name)")
+    .select("id, claim_number, claimant_name, status, detail, reported_date, paid_date, next_followup_date, claim_amount, customer:customers!inner(name), owner:profiles!claims_owner_id_fkey(full_name)")
     .order("next_followup_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(2000);
@@ -65,6 +66,7 @@ export default async function ClaimsPage({
   const exportRows = rows.map((c, i) => ({
     "ลำดับ": i + 1,
     "ลูกค้า": c.customer?.name ?? "",
+    "ผู้ทำเคลม": c.claimant_name ?? "",
     "เลขเคลม": c.claim_number ?? "",
     "สถานะ": CLAIM_STATUS_LABEL[c.status] ?? c.status,
     "แจ้งเคลม": c.reported_date ?? "",
@@ -169,7 +171,10 @@ export default async function ClaimsPage({
               const done = DONE.includes(c.status);
               return (
                 <tr key={c.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3"><Link href={`/claims/${c.id}`} className="font-medium text-slate-900 hover:underline">{c.customer?.name ?? "-"}</Link></td>
+                  <td className="px-4 py-3">
+                    <Link href={`/claims/${c.id}`} className="font-medium text-slate-900 hover:underline">{c.customer?.name ?? "-"}</Link>
+                    {c.claimant_name && <p className="text-xs text-slate-400">ผู้ทำเคลม: {c.claimant_name}</p>}
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-600">{c.claim_number ?? "-"}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${c.status === "paid" ? "bg-emerald-100 text-emerald-700" : c.status === "rejected" ? "bg-rose-100 text-rose-700" : "bg-sky-100 text-sky-700"}`}>

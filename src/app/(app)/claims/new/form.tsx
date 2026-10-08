@@ -46,6 +46,11 @@ export function NewClaimForm({
       </div>
 
       <div>
+        <label className={label}>ผู้ทำเคลม (ชื่อสมาชิกในกลุ่ม — กรณีประกันกลุ่ม)</label>
+        <input name="claimant_name" placeholder="เว้นว่างได้ถ้าเป็นลูกค้ารายบุคคล" className={field} />
+      </div>
+
+      <div>
         <label className={label}>รายละเอียดเคลม (รถ/ความเสียหาย/เหตุการณ์)</label>
         <textarea name="detail" rows={3} className={field} />
       </div>
