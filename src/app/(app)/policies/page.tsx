@@ -21,9 +21,9 @@ const RENEWAL_LABEL: Record<string, string> = { pending: "รอติดตา�
 export default async function PoliciesListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category_id?: string; from?: string; to?: string; owner?: string; insurer?: string; brand?: string; back?: string; due_from?: string; due_to?: string }>;
+  searchParams: Promise<{ category_id?: string; from?: string; to?: string; owner?: string; insurer?: string; brand?: string; back?: string; due_from?: string; due_to?: string; outcome?: string }>;
 }) {
-  const { category_id, from, to, owner, insurer, brand, back, due_from, due_to } = await searchParams;
+  const { category_id, from, to, owner, insurer, brand, back, due_from, due_to, outcome } = await searchParams;
   const supabase = await createClient();
   const renewalMode = !!(due_from || due_to); // came from the renewal-due drill
 
@@ -58,6 +58,8 @@ export default async function PoliciesListPage({
     if (to) q = q.lte("closed_date", to);
     if (due_from) q = q.gte("coverage_end_date", due_from);
     if (due_to) q = q.lte("coverage_end_date", due_to);
+    if (outcome === "renewed") q = q.eq("renewal_outcome", "renewed");
+    else if (outcome === "open") q = q.neq("renewal_outcome", "renewed"); // ยังไม่ต่อ/ไม่ต่อ
     return q as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>;
   });
 

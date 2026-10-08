@@ -271,10 +271,12 @@ export default async function DashboardHome({
     if (to) p.set("to", to);
     return `/payments?${p.toString()}`;
   };
-  // Renewal-due drill: filters the policy list by coverage_end window + brand.
-  const renewHref = (brand?: string) => {
+  // Renewal-due drill: filters the policy list by coverage_end window + brand +
+  // renewal outcome.
+  const renewHref = (opts: { brand?: string; outcome?: string } = {}) => {
     const p = new URLSearchParams();
-    if (brand && brand !== "อื่นๆ") p.set("brand", brand);
+    if (opts.brand && opts.brand !== "อื่นๆ") p.set("brand", opts.brand);
+    if (opts.outcome) p.set("outcome", opts.outcome);
     if (from) p.set("due_from", from);
     if (to) p.set("due_to", to);
     if (scopeId) p.set("owner", scopeId);
@@ -485,15 +487,15 @@ export default async function DashboardHome({
         ) : (
           <>
             <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Card label="ครบกำหนดต่อ" value={`${renewAll.due} ราย`} />
-              <Card label="ต่อแล้ว" value={`${renewAll.renewed} ราย`} accent="text-emerald-700" />
-              <Card label="ยังไม่ต่อ/ไม่ต่อ" value={`${renewAll.due - renewAll.renewed} ราย`} accent="text-rose-600" />
+              <Link href={renewHref()} className="block hover:opacity-80"><Card label="ครบกำหนดต่อ (คลิกดู)" value={`${renewAll.due} ราย`} /></Link>
+              <Link href={renewHref({ outcome: "renewed" })} className="block hover:opacity-80"><Card label="ต่อแล้ว (คลิกดู)" value={`${renewAll.renewed} ราย`} accent="text-emerald-700" /></Link>
+              <Link href={renewHref({ outcome: "open" })} className="block hover:opacity-80"><Card label="ยังไม่ต่อ/ไม่ต่อ (คลิกดู)" value={`${renewAll.due - renewAll.renewed} ราย`} accent="text-rose-600" /></Link>
               <Card label="อัตราต่ออายุ" value={`${renewRate}%`} accent="text-blue-700" />
             </div>
             <p className="mb-2 text-xs font-medium text-slate-500">แยกตามแบรนด์รถ — คลิกเพื่อดูรายการ</p>
             <div className="space-y-1">
               {renewBrandRows.map((b) => (
-                <Link key={b.brand} href={renewHref(b.brand)} className="flex items-center gap-3 rounded-md p-1.5 text-sm hover:bg-slate-50">
+                <Link key={b.brand} href={renewHref({ brand: b.brand })} className="flex items-center gap-3 rounded-md p-1.5 text-sm hover:bg-slate-50">
                   <div className="w-24 shrink-0 truncate text-slate-700" title={b.brand}>{b.brand}</div>
                   <div className="flex-1">
                     <div className="h-5 w-full overflow-hidden rounded bg-slate-100">
