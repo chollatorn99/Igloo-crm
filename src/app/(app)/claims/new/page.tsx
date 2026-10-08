@@ -8,16 +8,27 @@ export default async function NewClaimPage({ searchParams }: { searchParams: Pro
 
   // No customer chosen yet → search & pick one right here.
   if (!customer) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: me } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
+    // Support/manager handle claims team-wide, so they search ALL customers via
+    // a security-definer function; a salesperson searches their own (RLS).
+    const teamWide = me?.role === "manager" || me?.role === "support";
+
     let results: { id: string; name: string; phone: string | null }[] = [];
     const info = new Map<string, { cats: Set<string>; latestStart: string | null; latestEnd: string | null }>();
     if (q?.trim()) {
       const term = q.trim().replace(/[%,()]/g, "");
-      const { data } = await supabase
-        .from("customers")
-        .select("id, name, phone")
-        .or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
-        .limit(25);
-      results = data ?? [];
+      if (teamWide) {
+        const { data } = await supabase.rpc("claim_customer_search", { term });
+        results = (data ?? []) as { id: string; name: string; phone: string | null }[];
+      } else {
+        const { data } = await supabase
+          .from("customers")
+          .select("id, name, phone")
+          .or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
+          .limit(25);
+        results = data ?? [];
+      }
       // Enrich with each customer's policy types + current coverage year, so
       // staff can tell near-identical company names apart.
       if (results.length) {

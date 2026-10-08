@@ -48,7 +48,7 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
             เคลม: <Link href={`/customers/${c.customer?.id}`} className="hover:underline">{c.customer?.name ?? "-"}</Link>
           </h1>
           <p className="text-xs text-slate-500">
-            {c.claimant_name ? `ผู้ทำเคลม: ${c.claimant_name} · ` : ""}{c.claim_number ? `เลขเคลม ${c.claim_number} · ` : ""}สถานะ: {CLAIM_STATUS_LABEL[c.status] ?? c.status} · เจ้าของ {c.owner?.full_name ?? "-"}
+            {c.claimant_name ? `ผู้ทำเคลม: ${String(c.claimant_name).split("\n").map((x) => x.trim()).filter(Boolean).join(", ")} · ` : ""}{c.claim_number ? `เลขเคลม ${c.claim_number} · ` : ""}สถานะ: {CLAIM_STATUS_LABEL[c.status] ?? c.status} · เจ้าของ {c.owner?.full_name ?? "-"}
           </p>
         </div>
         {canDelete && (
@@ -91,8 +91,8 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
         </div>
 
         <div>
-          <label className={lbl}>ผู้ทำเคลม (ชื่อสมาชิกในกลุ่ม — กรณีประกันกลุ่ม)</label>
-          <input name="claimant_name" defaultValue={(c.claimant_name as string) ?? ""} placeholder="เว้นว่างได้ถ้าเป็นลูกค้ารายบุคคล" className={field} />
+          <label className={lbl}>ผู้ทำเคลม (ประกันกลุ่มใส่ได้หลายคน — บรรทัดละชื่อ)</label>
+          <textarea name="claimant_name" rows={3} defaultValue={(c.claimant_name as string) ?? ""} placeholder="เว้นว่างได้ถ้าเป็นรายบุคคล · หลายคนให้ขึ้นบรรทัดใหม่" className={field} />
         </div>
 
         <div>

@@ -173,7 +173,7 @@ export default async function ClaimsPage({
                 <tr key={c.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <Link href={`/claims/${c.id}`} className="font-medium text-slate-900 hover:underline">{c.customer?.name ?? "-"}</Link>
-                    {c.claimant_name && <p className="text-xs text-slate-400">ผู้ทำเคลม: {c.claimant_name}</p>}
+                    {c.claimant_name && <p className="text-xs text-slate-400">ผู้ทำเคลม: {c.claimant_name.split("\n").map((x) => x.trim()).filter(Boolean).join(", ")}</p>}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-600">{c.claim_number ?? "-"}</td>
                   <td className="px-4 py-3">
