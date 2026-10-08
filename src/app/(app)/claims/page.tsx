@@ -90,7 +90,12 @@ export default async function ClaimsPage({
           <h1 className="text-lg font-semibold text-slate-900">Dashboard เคลม (Claims)</h1>
           <p className="text-xs text-slate-500">{all.length} เคลม — เห็นตามสิทธิ์ของบัญชีคุณ</p>
         </div>
-        <ClaimsExport rows={exportRows} />
+        <div className="flex gap-2">
+          <ClaimsExport rows={exportRows} />
+          <Link href="/claims/new" className="rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+            + แจ้งเคลมใหม่
+          </Link>
+        </div>
       </div>
 
       {/* Summary cards */}
