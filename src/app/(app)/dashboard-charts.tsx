@@ -121,18 +121,24 @@ function BarList({ title, data, note, count }: { title: string; data: Slice[]; n
 
 export function DashboardCharts({
   salesShare,
+  categoryShare,
   insurers,
   payment,
   brands,
 }: {
   salesShare: Slice[];
+  categoryShare: Slice[];
   insurers: Slice[];
   payment: Slice[];
   brands: Slice[];
 }) {
   return (
     <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {salesShare.length > 0 && <Donut title="สัดส่วนยอดขายรายพนักงาน (เบี้ยสุทธิ)" data={salesShare} />}
+      {salesShare.length > 0 ? (
+        <Donut title="สัดส่วนยอดขายรายพนักงาน (เบี้ยสุทธิ)" data={salesShare} />
+      ) : (
+        <Donut title="สัดส่วนเบี้ยตามประเภทกรมธรรม์" data={categoryShare} />
+      )}
       <Donut title="สถานะการเก็บเงิน (เบี้ยรวม)" data={payment} />
       <BarList title="บริษัทประกันขายมากสุด (เบี้ยสุทธิ)" data={insurers} note="Top 8 · คลิกแถวเพื่อดูรายการ" />
       <BarList title="จำนวนรายที่ขายแยกตามแบรนด์รถ" data={brands} count note="อ่านจาก policy_detail · คลิกแถวเพื่อดูรายการ" />

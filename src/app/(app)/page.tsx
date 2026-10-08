@@ -200,12 +200,68 @@ export default async function DashboardHome({
   // Company net commission = what Igloo keeps AFTER paying a commission-earning
   // salesperson (their company commission is passed through to them).
   const companyNet = netToIgloo - promo.ownComm;
+
+  // ===== Renewal win-rate: of the policies DUE to renew in the window (by
+  // coverage_end), how many were renewed vs not — overall and per car brand.
+  // Includes prospects (they are renewal opportunities). Scoped like the rest.
+  type DueRow = { policy_detail: string | null; renewal_outcome: string | null; coverage_end_date: string | null; customer: { owner_id: string } | null };
+  const dueRows = await fetchAll<DueRow>((f, t) => {
+    let q = supabase
+      .from("policies")
+      .select("policy_detail, renewal_outcome, coverage_end_date, customer:customers!inner(owner_id)")
+      .eq("deal_status", "win")
+      .order("coverage_end_date")
+      .range(f, t);
+    if (from) q = q.gte("coverage_end_date", from);
+    if (to) q = q.lte("coverage_end_date", to);
+    return q as unknown as PromiseLike<{ data: DueRow[] | null; error: { message: string } | null }>;
+  });
+  const renewAll = { due: 0, renewed: 0, notRenewed: 0 };
+  const renewByBrand = new Map<string, { due: number; renewed: number; notRenewed: number }>();
+  for (const r of dueRows) {
+    const o = r.customer?.owner_id;
+    if (!o || (scopeId && o !== scopeId)) continue;
+    renewAll.due++;
+    const isR = r.renewal_outcome === "renewed";
+    const isN = r.renewal_outcome === "not_renewed";
+    if (isR) renewAll.renewed++;
+    if (isN) renewAll.notRenewed++;
+    const b = brandOf(r.policy_detail) ?? "อื่นๆ";
+    const g = renewByBrand.get(b) ?? { due: 0, renewed: 0, notRenewed: 0 };
+    g.due++; if (isR) g.renewed++; if (isN) g.notRenewed++;
+    renewByBrand.set(b, g);
+  }
+  const renewRate = renewAll.due > 0 ? Math.round((renewAll.renewed / renewAll.due) * 100) : 0;
+  const renewBrandRows = [...renewByBrand.entries()]
+    .map(([brand, g]) => ({ brand, ...g, rate: g.due > 0 ? Math.round((g.renewed / g.due) * 100) : 0 }))
+    .sort((a, b) => b.due - a.due);
+
+  // The current dashboard URL, so a drill-down page can send the user back to
+  // the exact same period/salesperson instead of resetting to this month.
+  const backParams = new URLSearchParams();
+  if (sp.range) backParams.set("range", sp.range);
+  if (sp.from) backParams.set("from", sp.from);
+  if (sp.to) backParams.set("to", sp.to);
+  if (sp.sales) backParams.set("sales", sp.sales);
+  const backQS = backParams.toString();
+
   // Drill-down link into the policy list, carrying the current window + scope.
   const drillHref = (extra: Record<string, string>) => {
     const p = new URLSearchParams(extra);
     if (from) p.set("from", from);
     if (to) p.set("to", to);
     if (scopeId) p.set("owner", scopeId);
+    if (backQS) p.set("back", backQS);
+    return `/policies?${p.toString()}`;
+  };
+  // Renewal-due drill: filters the policy list by coverage_end window + brand.
+  const renewHref = (brand?: string) => {
+    const p = new URLSearchParams();
+    if (brand && brand !== "อื่นๆ") p.set("brand", brand);
+    if (from) p.set("due_from", from);
+    if (to) p.set("due_to", to);
+    if (scopeId) p.set("owner", scopeId);
+    if (backQS) p.set("back", backQS);
     return `/policies?${p.toString()}`;
   };
   const brandData: Slice[] = [...byBrand.entries()]
@@ -252,6 +308,7 @@ export default async function DashboardHome({
     if (from) p.set("from", from);
     if (to) p.set("to", to);
     if (scopeId) p.set("owner", scopeId);
+    if (backQS) p.set("back", backQS);
     return `/policies?${p.toString()}`;
   };
 
@@ -274,6 +331,13 @@ export default async function DashboardHome({
           .sort((a, b) => b.value - a.value)
           .map((p, i) => ({ label: p.name, value: p.value, color: PALETTE[i % PALETTE.length] }))
       : [];
+
+  // Category-premium donut — shown to everyone (so a single salesperson, who has
+  // no team-share donut, still gets the same visual breakdown as the manager).
+  const categoryShareData: Slice[] = categories
+    .filter((c) => c.premium > 0)
+    .slice(0, 10)
+    .map((c) => ({ label: c.name, value: c.premium, color: colorFor(c.name), href: catHref(c.id) }));
 
   const presets = [
     { key: "month", label: "เดือนนี้" },
@@ -393,7 +457,42 @@ export default async function DashboardHome({
       </div>
 
       <h2 className="mb-3 text-sm font-semibold text-slate-600">สรุปภาพรวม (กราฟ) — {label}</h2>
-      <DashboardCharts salesShare={salesShareData} insurers={insurerData} payment={paymentData} brands={brandData} />
+      <DashboardCharts salesShare={salesShareData} categoryShare={categoryShareData} insurers={insurerData} payment={paymentData} brands={brandData} />
+
+      {/* Renewal win-rate: of customers DUE to renew in this window, how many
+          renewed — overall + per brand, each row clickable. */}
+      <h2 className="mb-3 text-sm font-semibold text-slate-600">อัตราต่ออายุ (Renewal) — ตามจำนวนที่ครบกำหนด ({label})</h2>
+      <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5">
+        {renewAll.due === 0 ? (
+          <p className="text-sm text-slate-400">ไม่มีกรมธรรม์ครบกำหนดต่อในช่วงที่เลือก</p>
+        ) : (
+          <>
+            <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <Card label="ครบกำหนดต่อ" value={`${renewAll.due} ราย`} />
+              <Card label="ต่อแล้ว" value={`${renewAll.renewed} ราย`} accent="text-emerald-700" />
+              <Card label="ยังไม่ต่อ/ไม่ต่อ" value={`${renewAll.due - renewAll.renewed} ราย`} accent="text-rose-600" />
+              <Card label="อัตราต่ออายุ" value={`${renewRate}%`} accent="text-blue-700" />
+            </div>
+            <p className="mb-2 text-xs font-medium text-slate-500">แยกตามแบรนด์รถ — คลิกเพื่อดูรายการ</p>
+            <div className="space-y-1">
+              {renewBrandRows.map((b) => (
+                <Link key={b.brand} href={renewHref(b.brand)} className="flex items-center gap-3 rounded-md p-1.5 text-sm hover:bg-slate-50">
+                  <div className="w-24 shrink-0 truncate text-slate-700" title={b.brand}>{b.brand}</div>
+                  <div className="flex-1">
+                    <div className="h-5 w-full overflow-hidden rounded bg-slate-100">
+                      <div className="h-full rounded bg-emerald-500" style={{ width: `${b.rate}%` }} />
+                    </div>
+                  </div>
+                  <div className="w-14 shrink-0 text-right font-mono text-xs font-semibold text-blue-700">{b.rate}%</div>
+                  <div className="w-40 shrink-0 text-right font-mono text-xs text-slate-500">
+                    ต่อ {b.renewed}/{b.due} · เหลือ {b.due - b.renewed} →
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       <h2 className="mb-3 text-sm font-semibold text-slate-600">
         ประเภทกรมธรรม์ที่ขายได้ (ตามเบี้ยประกัน) — คลิกเพื่อดูรายการ
