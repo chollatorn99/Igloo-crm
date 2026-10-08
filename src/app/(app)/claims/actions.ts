@@ -57,11 +57,64 @@ export async function updateClaim(claimId: string, formData: FormData): Promise<
       negotiate_date: s(formData.get("negotiate_date")),
       agreed_date: s(formData.get("agreed_date")),
       paid_date: s(formData.get("paid_date")),
+      documents_received_date: s(formData.get("documents_received_date")),
       next_followup_date: s(formData.get("next_followup_date")),
+      // Per-stage notes.
+      reported_note: s(formData.get("reported_note")),
+      insurer_reported_note: s(formData.get("insurer_reported_note")),
+      survey_note: s(formData.get("survey_note")),
+      quote_note: s(formData.get("quote_note")),
+      negotiate_note: s(formData.get("negotiate_note")),
+      agreed_note: s(formData.get("agreed_note")),
+      paid_note: s(formData.get("paid_note")),
+      documents_received_note: s(formData.get("documents_received_note")),
       notes: s(formData.get("notes")),
       updated_at: new Date().toISOString(),
     })
     .eq("id", claimId);
+  if (error) return { error: error.message };
+  revalidatePath(`/claims/${claimId}`);
+  return {};
+}
+
+// ----- per-claimant (group member) lines -----
+export async function addClaimant(claimId: string, formData: FormData): Promise<Result> {
+  const supabase = await createClient();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "กรุณาใส่ชื่อผู้ทำเคลม" };
+  const { error } = await supabase.from("claim_claimants").insert({
+    claim_id: claimId,
+    name,
+    status: s(formData.get("status")) ?? "pending",
+    amount: n(formData.get("amount")),
+    paid_date: s(formData.get("paid_date")),
+    note: s(formData.get("note")),
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/claims/${claimId}`);
+  return {};
+}
+
+export async function updateClaimant(claimantId: string, claimId: string, formData: FormData): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("claim_claimants")
+    .update({
+      name: String(formData.get("name") ?? "").trim(),
+      status: s(formData.get("status")) ?? "pending",
+      amount: n(formData.get("amount")),
+      paid_date: s(formData.get("paid_date")),
+      note: s(formData.get("note")),
+    })
+    .eq("id", claimantId);
+  if (error) return { error: error.message };
+  revalidatePath(`/claims/${claimId}`);
+  return {};
+}
+
+export async function deleteClaimant(claimantId: string, claimId: string): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("claim_claimants").delete().eq("id", claimantId);
   if (error) return { error: error.message };
   revalidatePath(`/claims/${claimId}`);
   return {};
