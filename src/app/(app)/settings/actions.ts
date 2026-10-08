@@ -134,6 +134,24 @@ export async function reactivateUser(userId: string): Promise<ActionResult> {
   return { message: "เปิดใช้งานผู้ใช้อีกครั้งแล้ว" };
 }
 
+export async function resetUserPassword(userId: string, formData: FormData): Promise<ActionResult> {
+  const supabase = await createClient();
+  const authError = await managerCheckError(supabase);
+  if (authError) return { error: authError };
+
+  const password = String(formData.get("password") ?? "");
+  if (password.length < 8) return { error: "รหัสผ่านอย่างน้อย 8 ตัวอักษร" };
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.updateUserById(userId, { password });
+  if (error) return { error: error.message };
+  // Force the user to set their own password on next login.
+  await admin.from("profiles").update({ must_change_password: true }).eq("id", userId);
+
+  revalidatePath("/settings");
+  return { message: "รีเซ็ตรหัสผ่านแล้ว — แจ้งรหัสใหม่ให้ผู้ใช้ และระบบจะบังคับเปลี่ยนตอนล็อกอินครั้งถัดไป" };
+}
+
 export async function updateCategoryDays(categoryId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
   const authError = await managerCheckError(supabase);

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createUser, deleteUser, reactivateUser, updateCategoryDays, addCategory, bulkReassign } from "./actions";
+import { createUser, deleteUser, reactivateUser, resetUserPassword, updateCategoryDays, addCategory, bulkReassign } from "./actions";
 import { ActionButton, ActionForm } from "@/components/ActionForm";
 
 export default async function SettingsPage() {
@@ -39,21 +39,33 @@ export default async function SettingsPage() {
                   </span>
                 )}
               </span>
-              {p.status === "inactive" ? (
-                <ActionForm
-                  action={reactivateUser.bind(null, p.id)}
-                  confirmMessage={`เปิดใช้งาน "${p.full_name}" อีกครั้ง?`}
-                >
-                  <ActionButton label="เปิดใช้งาน" className="text-emerald-600 hover:underline" />
-                </ActionForm>
-              ) : (
-                <ActionForm
-                  action={deleteUser.bind(null, p.id)}
-                  confirmMessage={`ลบผู้ใช้ "${p.full_name}"? (ถ้ามีประวัติการใช้งาน ระบบจะปิดการใช้งานถาวรแทนการลบ)`}
-                >
-                  <ActionButton label="ลบ" className="text-rose-600 hover:underline" />
-                </ActionForm>
-              )}
+              <div className="flex items-center gap-3">
+                {p.status !== "inactive" && (
+                  <ActionForm
+                    action={resetUserPassword.bind(null, p.id)}
+                    successMessage={`รีเซ็ตรหัสผ่าน "${p.full_name}" แล้ว — แจ้งรหัสใหม่ให้ผู้ใช้`}
+                    className="flex items-center gap-1"
+                  >
+                    <input type="text" name="password" placeholder="รหัสใหม่ (≥8)" className="w-32 rounded border border-slate-300 px-2 py-1 text-xs" />
+                    <ActionButton label="รีเซ็ตรหัส" className="text-blue-600 hover:underline" />
+                  </ActionForm>
+                )}
+                {p.status === "inactive" ? (
+                  <ActionForm
+                    action={reactivateUser.bind(null, p.id)}
+                    confirmMessage={`เปิดใช้งาน "${p.full_name}" อีกครั้ง?`}
+                  >
+                    <ActionButton label="เปิดใช้งาน" className="text-emerald-600 hover:underline" />
+                  </ActionForm>
+                ) : (
+                  <ActionForm
+                    action={deleteUser.bind(null, p.id)}
+                    confirmMessage={`ลบผู้ใช้ "${p.full_name}"? (ถ้ามีประวัติการใช้งาน ระบบจะปิดการใช้งานถาวรแทนการลบ)`}
+                  >
+                    <ActionButton label="ลบ" className="text-rose-600 hover:underline" />
+                  </ActionForm>
+                )}
+              </div>
             </div>
           ))}
         </div>
