@@ -26,7 +26,7 @@ export default async function NewClaimPage({ searchParams }: { searchParams: Pro
           .select("customer_id, coverage_start_date, coverage_end_date, category:policy_categories(name)")
           .in("customer_id", results.map((r) => r.id))
           .eq("deal_status", "win");
-        for (const p of (pols ?? []) as { customer_id: string; coverage_start_date: string | null; coverage_end_date: string | null; category: { name: string } | null }[]) {
+        for (const p of (pols ?? []) as unknown as { customer_id: string; coverage_start_date: string | null; coverage_end_date: string | null; category: { name: string } | null }[]) {
           const g = info.get(p.customer_id) ?? { cats: new Set<string>(), latestStart: null, latestEnd: null };
           if (p.category?.name) g.cats.add(p.category.name);
           if (p.coverage_end_date && (!g.latestEnd || p.coverage_end_date > g.latestEnd)) { g.latestEnd = p.coverage_end_date; g.latestStart = p.coverage_start_date; }
