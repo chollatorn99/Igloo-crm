@@ -65,6 +65,7 @@ export function EnvelopeSelectTable({ customers, emptyText }: { customers: Row[]
               <th className="px-4 py-3">เจ้าของ</th>
               <th className="px-4 py-3">จำนวนครั้งที่โทร</th>
               <th className="px-4 py-3">ผลล่าสุด</th>
+              <th className="px-4 py-3">เคลม</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -83,11 +84,16 @@ export function EnvelopeSelectTable({ customers, emptyText }: { customers: Row[]
                 <td className="px-4 py-3 text-slate-600">{c.owner?.full_name ?? "-"}</td>
                 <td className="px-4 py-3 text-slate-600">{c.call_count}</td>
                 <td className="px-4 py-3 text-slate-600">{c.last_call_result ?? "-"}</td>
+                <td className="px-4 py-3">
+                  <Link href={`/claims/new?customer=${c.id}`} className="rounded-md bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100">
+                    + แจ้งเคลม
+                  </Link>
+                </td>
               </tr>
             ))}
             {customers.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">{emptyText}</td>
+                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">{emptyText}</td>
               </tr>
             )}
           </tbody>
