@@ -210,6 +210,7 @@ export default async function DashboardHome({
       .from("policies")
       .select("policy_detail, renewal_outcome, coverage_end_date, customer:customers!inner(owner_id)")
       .eq("deal_status", "win")
+      .eq("is_endorsement", false) // สลักหลังไม่นับเป็นรายการครบกำหนดต่อ
       .order("coverage_end_date")
       .range(f, t);
     if (from) q = q.gte("coverage_end_date", from);
