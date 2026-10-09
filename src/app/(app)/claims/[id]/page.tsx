@@ -109,6 +109,16 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
           <p className="mb-2 text-xs font-semibold text-slate-600">ขั้นตอนการเคลม (ใส่วันที่ + โน้ตแต่ละขั้น)</p>
           <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-2 rounded-md bg-amber-50 p-2 sm:grid-cols-[13rem_1fr]">
+              <div>
+                <label className={lbl}>วันรับเอกสารจากลูกค้า</label>
+                <input type="date" name="documents_received_date" defaultValue={(c.documents_received_date as string) ?? ""} className={field} />
+              </div>
+              <div>
+                <label className={lbl}>โน้ตเอกสาร</label>
+                <input name="documents_received_note" defaultValue={(c.documents_received_note as string) ?? ""} placeholder="เช่น ได้รับครบ / ยังขาดใบเสร็จ" className={field} />
+              </div>
+            </div>
             {CLAIM_STAGES.map((st, i) => (
               <div key={st.key} className="grid grid-cols-1 gap-2 sm:grid-cols-[13rem_1fr]">
                 <div>
@@ -121,16 +131,6 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
                 </div>
               </div>
             ))}
-            <div className="grid grid-cols-1 gap-2 border-t border-slate-200 pt-2 sm:grid-cols-[13rem_1fr]">
-              <div>
-                <label className={lbl}>วันรับเอกสารจากลูกค้า</label>
-                <input type="date" name="documents_received_date" defaultValue={(c.documents_received_date as string) ?? ""} className={field} />
-              </div>
-              <div>
-                <label className={lbl}>โน้ตเอกสาร</label>
-                <input name="documents_received_note" defaultValue={(c.documents_received_note as string) ?? ""} placeholder="เช่น ได้รับครบ / ยังขาดใบเสร็จ" className={field} />
-              </div>
-            </div>
           </div>
         </div>
 
