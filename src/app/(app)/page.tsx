@@ -462,16 +462,17 @@ export default async function DashboardHome({
         {scopeEarns && <Card label={ownCommLabel} value={baht(scope.commission)} accent="text-emerald-700" />}
       </div>
 
-      {/* งานบริษัทในเครือ — ticked per policy, kept OUT of the figures above */}
-      {interco.count > 0 && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <p className="mb-2 text-xs font-semibold text-amber-900">งานบริษัทในเครือ (แยกออกจากยอดขาย/ค่าคอมด้านบน)</p>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Card label="เบี้ยในเครือ (สุทธิ)" value={baht(interco.premium)} sub={`${interco.count} กรมธรรม์`} accent="text-amber-700" />
-            {(isManager || scopeEarns) && <Card label="ค่าคอมในเครือ" value={baht(interco.commission)} accent="text-amber-700" />}
-          </div>
+      {/* งานบริษัทในเครือ — ticked per policy, kept OUT of the figures above.
+          Always shown (0 when none) so the separate bucket is discoverable. */}
+      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <p className="mb-2 text-xs font-semibold text-amber-900">
+          งานบริษัทในเครือ (แยกออกจากยอดขาย/ค่าคอมด้านบน){interco.count === 0 ? " — ยังไม่มีงานที่ติ๊กในช่วงนี้" : ""}
+        </p>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Card label="เบี้ยในเครือ (สุทธิ)" value={baht(interco.premium)} sub={`${interco.count} กรมธรรม์`} accent="text-amber-700" />
+          {(isManager || scopeEarns) && <Card label="ค่าคอมในเครือ" value={baht(interco.commission)} accent="text-amber-700" />}
         </div>
-      )}
+      </div>
 
       {/* Sales-promotion expenses + company net (manager) */}
       {isManager && (
