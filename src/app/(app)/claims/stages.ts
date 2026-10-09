@@ -24,3 +24,22 @@ export const CLAIMANT_STATUS_LABEL: Record<string, string> = {
   rejected: "ปฏิเสธ",
   paid: "จ่ายแล้ว",
 };
+
+// Days a claim should be closed within, by policy type: health / golf = 14,
+// everything else (IAR, PL, …) = 30. Derived from the linked policy's category.
+export function claimSlaDays(categoryName: string | null | undefined): number {
+  const c = (categoryName ?? "").toLowerCase();
+  if (c.includes("health") || c.includes("สุขภาพ") || c.includes("golf") || c.includes("กอล์ฟ")) return 14;
+  return 30;
+}
+
+export function addDays(dateStr: string | null | undefined, days: number): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr.slice(0, 10) + "T00:00:00Z");
+  if (isNaN(d.getTime())) return null;
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// A claim is "closed" once it is paid or rejected.
+export const CLAIM_CLOSED = ["paid", "rejected"];

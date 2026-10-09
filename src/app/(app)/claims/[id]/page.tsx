@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ActionForm, ActionButton } from "@/components/ActionForm";
 import { updateClaim, addClaimNote, deleteClaim, addClaimant, updateClaimant, deleteClaimant } from "../actions";
-import { CLAIM_STAGES, CLAIM_STATUS_LABEL, CLAIMANT_STATUS_LABEL } from "../stages";
+import { CLAIM_STAGES, CLAIM_STATUS_LABEL, CLAIMANT_STATUS_LABEL, claimSlaDays, addDays, CLAIM_CLOSED } from "../stages";
 
 type Claim = Record<string, string | number | null> & { id: string; status: string; customer_id: string; created_by: string | null };
 
@@ -15,7 +15,7 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
 
   const { data: claim } = await supabase
     .from("claims")
-    .select("*, customer:customers(id, name), owner:profiles!claims_owner_id_fkey(full_name)")
+    .select("*, customer:customers(id, name), owner:profiles!claims_owner_id_fkey(full_name), policy:policies(category:policy_categories(name))")
     .eq("id", id)
     .single();
   if (!claim) notFound();
@@ -41,6 +41,16 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
   const addNote = addClaimNote.bind(null, id);
   const removeClaim = deleteClaim.bind(null, id);
   const canDelete = me?.role === "manager" || c.created_by === user!.id;
+
+  // Close-by deadline from the policy type: health/golf 14d, else 30d, counted
+  // from the claim-reported date.
+  const catName = (claim as { policy?: { category?: { name: string } | null } | null }).policy?.category?.name ?? null;
+  const slaDays = claimSlaDays(catName);
+  const openFrom = (c.reported_date as string) || String(c.created_at ?? "").slice(0, 10) || null;
+  const deadline = addDays(openFrom, slaDays);
+  const closed = CLAIM_CLOSED.includes(c.status);
+  const todayStr = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const daysLeft = deadline ? Math.round((new Date(deadline + "T00:00:00Z").getTime() - new Date(todayStr + "T00:00:00Z").getTime()) / 86400e3) : null;
   const field = "w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500";
   const lbl = "mb-1 block text-xs font-medium text-slate-600";
 
@@ -62,6 +72,18 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
           </ActionForm>
         )}
       </div>
+
+      {/* Close-by SLA banner */}
+      {closed ? (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+          ✓ ปิดเคสแล้ว ({CLAIM_STATUS_LABEL[c.status]})
+        </div>
+      ) : deadline ? (
+        <div className={`mb-4 rounded-lg border px-4 py-2 text-sm ${daysLeft != null && daysLeft < 0 ? "border-rose-300 bg-rose-50 text-rose-700" : daysLeft != null && daysLeft <= 3 ? "border-amber-300 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+          ⏳ ต้องปิดเคสภายใน <span className="font-semibold">{deadline}</span> ({catName ?? "ประเภทอื่น"} · {slaDays} วัน) ·{" "}
+          {daysLeft != null && daysLeft < 0 ? <span className="font-semibold">เกินกำหนด {Math.abs(daysLeft)} วัน</span> : <span className="font-semibold">เหลือ {daysLeft} วัน</span>}
+        </div>
+      ) : null}
 
       <ActionForm action={save} className="space-y-4 rounded-xl border border-slate-200 bg-white p-6">
         <div className="grid grid-cols-2 gap-3">

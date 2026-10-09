@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { CLAIM_STAGES, CLAIM_STATUS_LABEL } from "./stages";
+import { CLAIM_STAGES, CLAIM_STATUS_LABEL, claimSlaDays, addDays, CLAIM_CLOSED } from "./stages";
 import { ClaimsExport } from "./claims-export";
 
 type ClaimRow = {
@@ -13,9 +13,20 @@ type ClaimRow = {
   paid_date: string | null;
   next_followup_date: string | null;
   claim_amount: number | null;
+  created_at: string;
   customer: { name: string } | null;
   owner: { full_name: string } | null;
+  policy: { category: { name: string } | null } | null;
 };
+
+// Close-by deadline info for a claim row.
+function closeBy(c: ClaimRow, today: string) {
+  const slaDays = claimSlaDays(c.policy?.category?.name);
+  const deadline = addDays(c.reported_date || c.created_at.slice(0, 10), slaDays);
+  const closed = CLAIM_CLOSED.includes(c.status);
+  const daysLeft = deadline ? Math.round((new Date(deadline + "T00:00:00Z").getTime() - new Date(today + "T00:00:00Z").getTime()) / 86400e3) : null;
+  return { slaDays, deadline, closed, daysLeft };
+}
 
 const baht = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 0 });
 const DONE = ["paid", "rejected"];
@@ -34,7 +45,7 @@ export default async function ClaimsPage({
   // Fetch all visible claims once (RLS-scoped) → summary + filtered table in JS.
   const { data } = await supabase
     .from("claims")
-    .select("id, claim_number, claimant_name, status, detail, reported_date, paid_date, next_followup_date, claim_amount, customer:customers!inner(name), owner:profiles!claims_owner_id_fkey(full_name)")
+    .select("id, claim_number, claimant_name, status, detail, reported_date, paid_date, next_followup_date, claim_amount, created_at, customer:customers!inner(name), owner:profiles!claims_owner_id_fkey(full_name), policy:policies(category:policy_categories(name))")
     .order("next_followup_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(2000);
@@ -45,6 +56,7 @@ export default async function ClaimsPage({
   const openClaims = all.filter(isOpen);
   const overdue = all.filter((c) => isOpen(c) && c.next_followup_date != null && c.next_followup_date <= today);
   const paidThisMonth = all.filter((c) => c.status === "paid" && c.paid_date != null && c.paid_date >= monthStart && c.paid_date <= today);
+  const overdueClose = all.filter((c) => { const d = closeBy(c, today); return !d.closed && d.daysLeft != null && d.daysLeft < 0; });
   const openAmount = openClaims.reduce((s, c) => s + Number(c.claim_amount ?? 0), 0);
   // Average days reported → paid (settlement speed).
   const paidWithDates = all.filter((c) => c.status === "paid" && c.paid_date && c.reported_date);
@@ -62,6 +74,7 @@ export default async function ClaimsPage({
   if (status) rows = rows.filter((c) => c.status === status);
   if (q?.trim()) { const t = q.trim().toLowerCase(); rows = rows.filter((c) => (c.customer?.name ?? "").toLowerCase().includes(t)); }
   if (view === "followup") rows = rows.filter((c) => isOpen(c) && c.next_followup_date != null && c.next_followup_date <= today);
+  if (view === "overdueclose") rows = rows.filter((c) => { const d = closeBy(c, today); return !d.closed && d.daysLeft != null && d.daysLeft < 0; });
 
   const exportRows = rows.map((c, i) => ({
     "ลำดับ": i + 1,
@@ -101,8 +114,11 @@ export default async function ClaimsPage({
       </div>
 
       {/* Summary cards */}
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
         <Card label="เคลมเปิดอยู่" value={`${openClaims.length}`} sub="ยังไม่จบ" />
+        <Link href="/claims?view=overdueclose" className="block hover:opacity-80">
+          <Card label="เกินกำหนดปิดเคส (คลิก)" value={`${overdueClose.length}`} accent="text-rose-600" sub="สุขภาพ/กอล์ฟ 14วัน · อื่น 30วัน" />
+        </Link>
         <Link href="/claims?view=followup" className="block hover:opacity-80">
           <Card label="ค้างติดตาม (คลิก)" value={`${overdue.length}`} accent="text-rose-600" sub="เลยวันติดตาม" />
         </Link>
@@ -162,6 +178,7 @@ export default async function ClaimsPage({
               <th className="px-4 py-3">สถานะ</th>
               <th className="px-4 py-3">แจ้งเคลมเมื่อ</th>
               <th className="px-4 py-3">ติดตามครั้งถัดไป</th>
+              <th className="px-4 py-3">กำหนดปิดเคส</th>
               <th className="px-4 py-3">ยอดเคลม</th>
               <th className="px-4 py-3">เจ้าของ</th>
             </tr>
@@ -185,13 +202,22 @@ export default async function ClaimsPage({
                   <td className={`px-4 py-3 ${isOverdue(c.next_followup_date, done) ? "font-semibold text-rose-600" : "text-slate-600"}`}>
                     {c.next_followup_date ?? "-"}{isOverdue(c.next_followup_date, done) ? " ⏰" : ""}
                   </td>
+                  <td className="px-4 py-3 text-xs">
+                    {(() => {
+                      const d = closeBy(c, today);
+                      if (d.closed) return <span className="text-emerald-600">ปิดแล้ว</span>;
+                      if (!d.deadline) return <span className="text-slate-400">-</span>;
+                      const over = d.daysLeft != null && d.daysLeft < 0;
+                      return <span className={over ? "font-semibold text-rose-600" : "text-slate-600"}>{d.deadline}{over ? ` · เกิน ${Math.abs(d.daysLeft!)}ว.` : ` · เหลือ ${d.daysLeft}ว.`}</span>;
+                    })()}
+                  </td>
                   <td className="px-4 py-3 font-mono text-slate-600">{c.claim_amount != null ? baht(Number(c.claim_amount)) : "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{c.owner?.full_name ?? "-"}</td>
                 </tr>
               );
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400">ยังไม่มีเคลม — เริ่มจากหน้าลูกค้า กด &quot;+ แจ้งเคลม&quot;</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">ยังไม่มีเคลม — เริ่มจากหน้าลูกค้า กด &quot;+ แจ้งเคลม&quot;</td></tr>
             )}
           </tbody>
         </table>
