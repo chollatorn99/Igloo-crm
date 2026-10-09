@@ -20,6 +20,7 @@ type Policy = {
   agent: { id: string } | null;
   agent_commission_rate: number | null;
   customer_discount_amount: number | null;
+  is_intercompany: boolean | null;
   policy_received: boolean | null;
   policy_received_date: string | null;
   policy_sent: boolean | null;
@@ -274,6 +275,13 @@ export function PolicyEditForm({
             <input type="date" name="sent_date" defaultValue={policy.sent_date ?? ""} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
           </div>
         </div>
+      </div>
+
+      <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+        <label className="flex items-center gap-2 text-sm text-amber-900">
+          <input type="checkbox" name="is_intercompany" defaultChecked={policy.is_intercompany ?? false} className="h-4 w-4" />
+          งานบริษัทในเครือ (ไม่นับรวมยอดขาย/ค่าคอม — แยกเป็นก้อนในแดชบอร์ด)
+        </label>
       </div>
 
       <div>

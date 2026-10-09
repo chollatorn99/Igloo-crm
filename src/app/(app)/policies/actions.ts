@@ -60,6 +60,7 @@ export async function createPolicy(customerId: string, formData: FormData): Prom
       agent_id: strOrNull(formData.get("agent_id")),
       agent_commission_rate: numOrNull(formData.get("agent_commission_rate")),
       customer_discount_amount: numOrNull(formData.get("customer_discount_amount")) ?? 0,
+      is_intercompany: formData.get("is_intercompany") === "on",
       notes: strOrNull(formData.get("notes")),
     })
     .select("id")
@@ -82,6 +83,7 @@ export async function createPolicy(customerId: string, formData: FormData): Prom
         net_premium: numOrNull(formData.get("prb_premium")) ?? 600,
         stamp_duty: 0,
         vat: 0,
+        is_intercompany: formData.get("is_intercompany") === "on",
         notes: "พ.ร.บ. (ออกพร้อมประกันสมัครใจ)",
       });
     }
@@ -122,6 +124,7 @@ export async function updatePolicyDetails(policyId: string, formData: FormData):
       agent_id: strOrNull(formData.get("agent_id")),
       agent_commission_rate: numOrNull(formData.get("agent_commission_rate")),
       customer_discount_amount: numOrNull(formData.get("customer_discount_amount")) ?? 0,
+      is_intercompany: formData.get("is_intercompany") === "on",
       // Physical document tracking.
       policy_received: formData.get("policy_received") === "on",
       policy_received_date: strOrNull(formData.get("policy_received_date")),

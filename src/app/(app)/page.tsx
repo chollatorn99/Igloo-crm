@@ -17,6 +17,7 @@ type DashPolicyRow = {
   insurance_company: string | null;
   policy_detail: string | null;
   payment_status: string | null;
+  is_intercompany: boolean | null;
   category: { name: string } | null;
   customer: { owner_id: string } | null;
 };
@@ -91,7 +92,7 @@ export default async function DashboardHome({
   const { data: profile } = await supabase.from("profiles").select("role, full_name, supports_owner_id").eq("id", user!.id).single();
   const isManager = profile?.role === "manager";
 
-  const [{ data: profiles }, notes, policies] = await Promise.all([
+  const [{ data: profiles }, notes, rawPolicies] = await Promise.all([
     supabase.from("profiles").select("id, full_name, earns_commission").in("role", ["sales", "manager"]).order("full_name"),
     fetchAll<NoteRow>((f, t) => {
       // Count only real logged calls — exclude the one-off "[ยุบจากรายชื่อซ้ำ]"
@@ -110,7 +111,7 @@ export default async function DashboardHome({
       let q = supabase
         .from("policies")
         .select(
-          "deal_status, net_premium, total_premium, company_commission_amount, agent_commission_amount, customer_discount_amount, net_commission_to_igloo, closed_date, category_id, insurance_company, policy_detail, payment_status, category:policy_categories(name), customer:customers(owner_id)",
+          "deal_status, net_premium, total_premium, company_commission_amount, agent_commission_amount, customer_discount_amount, net_commission_to_igloo, closed_date, category_id, insurance_company, policy_detail, payment_status, is_intercompany, category:policy_categories(name), customer:customers(owner_id)",
         )
         .in("deal_status", ["win", "lost"])
         .eq("is_prospect", false) // dealer-lead prospects are never our sales
@@ -122,6 +123,12 @@ export default async function DashboardHome({
       return q as unknown as PromiseLike<{ data: DashPolicyRow[] | null; error: { message: string } | null }>;
     }),
   ]);
+
+  // Intercompany / group work (บริษัทในเครือ) is ticked per policy and kept OUT
+  // of every normal sales & commission figure below, then shown as its own
+  // bucket. Lost intercompany deals are irrelevant, so the bucket is win-only.
+  const intercoPolicies = rawPolicies.filter((p) => p.is_intercompany && p.deal_status === "win");
+  const policies = rawPolicies.filter((p) => !p.is_intercompany);
 
   const byUser = new Map<string, Stat>();
   const get = (id: string) => {
@@ -149,6 +156,16 @@ export default async function DashboardHome({
   // whole set RLS returns (only the salesperson they assist). null = "all
   // visible", which for support already means just their assisted salesperson.
   const scopeId = isManager ? sp.sales || null : profile?.role === "support" ? null : user!.id;
+
+  // Separate "งานบริษัทในเครือ" bucket, scoped & windowed like everything else.
+  const interco = { count: 0, premium: 0, commission: 0 };
+  for (const p of intercoPolicies) {
+    const o = p.customer?.owner_id;
+    if (!o || (scopeId && o !== scopeId)) continue;
+    interco.count++;
+    interco.premium += Number(p.net_premium ?? 0);
+    interco.commission += Number(p.company_commission_amount ?? 0);
+  }
 
   // Category breakdown, scoped to the selection.
   const byCategory = new Map<string, { id: string | null; name: string; count: number; premium: number; commission: number }>();
@@ -444,6 +461,17 @@ export default async function DashboardHome({
             who assists them) sees that commission. */}
         {scopeEarns && <Card label={ownCommLabel} value={baht(scope.commission)} accent="text-emerald-700" />}
       </div>
+
+      {/* งานบริษัทในเครือ — ticked per policy, kept OUT of the figures above */}
+      {interco.count > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="mb-2 text-xs font-semibold text-amber-900">งานบริษัทในเครือ (แยกออกจากยอดขาย/ค่าคอมด้านบน)</p>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Card label="เบี้ยในเครือ (สุทธิ)" value={baht(interco.premium)} sub={`${interco.count} กรมธรรม์`} accent="text-amber-700" />
+            {(isManager || scopeEarns) && <Card label="ค่าคอมในเครือ" value={baht(interco.commission)} accent="text-amber-700" />}
+          </div>
+        </div>
+      )}
 
       {/* Sales-promotion expenses + company net (manager) */}
       {isManager && (
