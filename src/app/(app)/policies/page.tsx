@@ -53,6 +53,8 @@ export default async function PoliciesListPage({
     // Renewal-due view includes prospects (they are renewal targets); the sales
     // drill-downs exclude them to match the dashboard sales figures.
     if (!renewalMode) q = q.eq("is_prospect", false);
+    // Renewal-due view hides endorsements (สลักหลัง) just like the reminder page.
+    if (renewalMode) q = q.eq("is_endorsement", false);
     if (category_id) q = q.eq("category_id", category_id);
     if (owner) q = q.eq("customer.owner_id", owner);
     if (insurer) q = q.eq("insurance_company", insurer);
