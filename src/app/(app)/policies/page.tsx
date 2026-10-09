@@ -8,12 +8,15 @@ type Row = {
   closed_date: string | null;
   coverage_end_date: string | null;
   insurance_company: string | null;
+  policy_detail: string | null;
   renewal_outcome: string;
   category: { name: string } | null;
   customer: { id: string; name: string } | null;
 };
 
 const baht = (n: number) => n.toLocaleString("th-TH", { maximumFractionDigits: 0 });
+// Car products — surface the vehicle (brand/model, kept in policy_detail).
+const CAR_CATEGORIES = ["Motor", "พรบ.รถ"];
 const RENEWAL_LABEL: Record<string, string> = { pending: "รอติดตาม", renewed: "ต่อแล้ว", not_renewed: "ไม่ต่อ" };
 
 // Drill-down from the dashboard category bars: individual won policies of a
@@ -42,7 +45,7 @@ export default async function PoliciesListPage({
     let q = supabase
       .from("policies")
       .select(
-        "id, net_premium, closed_date, coverage_end_date, insurance_company, renewal_outcome, category:policy_categories(name), customer:customers!inner(id, name, owner_id)",
+        "id, net_premium, closed_date, coverage_end_date, insurance_company, policy_detail, renewal_outcome, category:policy_categories(name), customer:customers!inner(id, name, owner_id)",
       )
       .eq("deal_status", "win")
       .order("closed_date", { ascending: false })
@@ -87,6 +90,7 @@ export default async function PoliciesListPage({
             <tr>
               <th className="px-4 py-3">ลูกค้า</th>
               <th className="px-4 py-3">ประเภท</th>
+              <th className="px-4 py-3">ยี่ห้อรถ</th>
               <th className="px-4 py-3">บริษัทประกัน</th>
               <th className="px-4 py-3">เบี้ยประกัน</th>
               <th className="px-4 py-3">วันปิดดีล</th>
@@ -103,6 +107,7 @@ export default async function PoliciesListPage({
                   </Link>
                 </td>
                 <td className="px-4 py-3 text-slate-600">{r.category?.name ?? "-"}</td>
+                <td className="px-4 py-3 text-slate-600">{r.category && CAR_CATEGORIES.includes(r.category.name) ? (r.policy_detail ?? "-") : "-"}</td>
                 <td className="px-4 py-3 text-slate-600">{r.insurance_company ?? "-"}</td>
                 <td className="px-4 py-3 font-mono text-slate-600">{baht(Number(r.net_premium ?? 0))}</td>
                 <td className="px-4 py-3 text-slate-600">{r.closed_date ?? "-"}</td>
@@ -112,7 +117,7 @@ export default async function PoliciesListPage({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                   ไม่มีรายการในช่วงที่เลือก
                 </td>
               </tr>
