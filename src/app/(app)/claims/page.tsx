@@ -16,12 +16,13 @@ type ClaimRow = {
   created_at: string;
   customer: { name: string } | null;
   owner: { full_name: string } | null;
+  category: { name: string } | null;
   policy: { category: { name: string } | null } | null;
 };
 
-// Close-by deadline info for a claim row.
+// Close-by deadline info for a claim row (claim's own type wins, else policy's).
 function closeBy(c: ClaimRow, today: string) {
-  const slaDays = claimSlaDays(c.policy?.category?.name);
+  const slaDays = claimSlaDays(c.category?.name ?? c.policy?.category?.name);
   const deadline = addDays(c.reported_date || c.created_at.slice(0, 10), slaDays);
   const closed = CLAIM_CLOSED.includes(c.status);
   const daysLeft = deadline ? Math.round((new Date(deadline + "T00:00:00Z").getTime() - new Date(today + "T00:00:00Z").getTime()) / 86400e3) : null;
@@ -45,7 +46,7 @@ export default async function ClaimsPage({
   // Fetch all visible claims once (RLS-scoped) → summary + filtered table in JS.
   const { data } = await supabase
     .from("claims")
-    .select("id, claim_number, claimant_name, status, detail, reported_date, paid_date, next_followup_date, claim_amount, created_at, customer:customers!inner(name), owner:profiles!claims_owner_id_fkey(full_name), policy:policies(category:policy_categories(name))")
+    .select("id, claim_number, claimant_name, status, detail, reported_date, paid_date, next_followup_date, claim_amount, created_at, customer:customers!inner(name), owner:profiles!claims_owner_id_fkey(full_name), category:policy_categories(name), policy:policies(category:policy_categories(name))")
     .order("next_followup_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(2000);

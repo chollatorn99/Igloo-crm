@@ -15,7 +15,7 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
 
   const { data: claim } = await supabase
     .from("claims")
-    .select("*, customer:customers(id, name), owner:profiles!claims_owner_id_fkey(full_name), policy:policies(category:policy_categories(name))")
+    .select("*, customer:customers(id, name), owner:profiles!claims_owner_id_fkey(full_name), category:policy_categories(name), policy:policies(category:policy_categories(name))")
     .eq("id", id)
     .single();
   if (!claim) notFound();
@@ -36,6 +36,7 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
     .select("id, name, status, amount, paid_date, note")
     .eq("claim_id", id)
     .order("created_at");
+  const { data: categories } = await supabase.from("policy_categories").select("id, name").eq("active", true).order("name");
 
   const save = updateClaim.bind(null, id);
   const addNote = addClaimNote.bind(null, id);
@@ -44,7 +45,8 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
 
   // Close-by deadline from the policy type: health/golf 14d, else 30d, counted
   // from the claim-reported date.
-  const catName = (claim as { policy?: { category?: { name: string } | null } | null }).policy?.category?.name ?? null;
+  const cc = claim as { category?: { name: string } | null; policy?: { category?: { name: string } | null } | null };
+  const catName = cc.category?.name ?? cc.policy?.category?.name ?? null;
   const slaDays = claimSlaDays(catName);
   const openFrom = (c.reported_date as string) || String(c.created_at ?? "").slice(0, 10) || null;
   const deadline = addDays(openFrom, slaDays);
@@ -100,6 +102,13 @@ export default async function ClaimDetailPage({ params }: { params: Promise<{ id
         </div>
 
         <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={lbl}>ประเภทประกันที่เคลม (กำหนดเวลาปิดเคส)</label>
+            <select name="category_id" defaultValue={(c.category_id as string) ?? ""} className={field}>
+              <option value="">— ไม่ระบุ —</option>
+              {(categories ?? []).map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+            </select>
+          </div>
           <div>
             <label className={lbl}>กรมธรรม์ที่เกี่ยวข้อง</label>
             <select name="policy_id" defaultValue={(c.policy_id as string) ?? ""} className={field}>

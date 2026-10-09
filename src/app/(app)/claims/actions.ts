@@ -25,6 +25,7 @@ export async function createClaim(formData: FormData): Promise<Result> {
       owner_id: cust.owner_id,
       created_by: user.id,
       policy_id: s(formData.get("policy_id")),
+      category_id: s(formData.get("category_id")),
       claim_number: s(formData.get("claim_number")),
       claimant_name: s(formData.get("claimant_name")),
       detail: s(formData.get("detail")),
@@ -45,6 +46,7 @@ export async function updateClaim(claimId: string, formData: FormData): Promise<
     .from("claims")
     .update({
       claim_number: s(formData.get("claim_number")),
+      category_id: s(formData.get("category_id")),
       claimant_name: s(formData.get("claimant_name")),
       status: s(formData.get("status")) ?? "reported",
       detail: s(formData.get("detail")),

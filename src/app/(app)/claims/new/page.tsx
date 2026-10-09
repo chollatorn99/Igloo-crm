@@ -90,6 +90,7 @@ export default async function NewClaimPage({ searchParams }: { searchParams: Pro
     id: p.id,
     label: [(p.category as unknown as { name: string } | null)?.name, p.insurance_company, p.policy_detail].filter(Boolean).join(" · ") || "กรมธรรม์",
   }));
+  const { data: cats } = await supabase.from("policy_categories").select("id, name").eq("active", true).order("name");
 
   return (
     <div className="mx-auto max-w-2xl p-8">
@@ -97,7 +98,7 @@ export default async function NewClaimPage({ searchParams }: { searchParams: Pro
         {from === "claims" ? "← กลับหน้าเคลม" : "← กลับหน้าลูกค้า"}
       </Link>
       <h1 className="mb-4 text-lg font-semibold text-slate-900">แจ้งเคลมใหม่</h1>
-      <NewClaimForm customerId={customer} customerName={cust?.name ?? "-"} policies={policies} />
+      <NewClaimForm customerId={customer} customerName={cust?.name ?? "-"} policies={policies} categories={cats ?? []} />
     </div>
   );
 }

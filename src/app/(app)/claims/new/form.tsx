@@ -7,10 +7,12 @@ export function NewClaimForm({
   customerId,
   customerName,
   policies,
+  categories,
 }: {
   customerId: string;
   customerName: string;
   policies: { id: string; label: string }[];
+  categories: { id: string; name: string }[];
 }) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -33,16 +35,25 @@ export function NewClaimForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
+          <label className={label}>ประเภทประกันที่เคลม *</label>
+          <select name="category_id" defaultValue="" required className={field}>
+            <option value="" disabled>— เลือกประเภท —</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <p className="mt-0.5 text-[11px] text-slate-400">สุขภาพ/กอล์ฟ = ปิดใน 14 วัน · อื่นๆ = 30 วัน</p>
+        </div>
+        <div>
           <label className={label}>เลขที่เคลม</label>
           <input name="claim_number" className={field} />
         </div>
-        <div>
-          <label className={label}>กรมธรรม์ที่เกี่ยวข้อง</label>
-          <select name="policy_id" defaultValue="" className={field}>
-            <option value="">— ไม่ระบุ —</option>
-            {policies.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
-        </div>
+      </div>
+
+      <div>
+        <label className={label}>กรมธรรม์ที่เกี่ยวข้อง</label>
+        <select name="policy_id" defaultValue="" className={field}>
+          <option value="">— ไม่ระบุ —</option>
+          {policies.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
       </div>
 
       <div>
