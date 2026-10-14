@@ -41,8 +41,20 @@ function strOrNull(v: FormDataEntryValue | null) {
   return s === "" ? null : s;
 }
 
+// Coverage end must fall after the start — guards the recurring data-entry slip
+// where พ.ร.บ. gets the same date for start and end (a zero-day policy).
+function coverageDateError(formData: FormData): string | null {
+  const cs = strOrNull(formData.get("coverage_start_date"));
+  const ce = strOrNull(formData.get("coverage_end_date"));
+  if (cs && ce && ce <= cs) return "วันหมดอายุต้องอยู่หลังวันเริ่มคุ้มครอง (ตรวจวันที่อีกครั้ง)";
+  return null;
+}
+
 export async function createPolicy(customerId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
+
+  const dateErr = coverageDateError(formData);
+  if (dateErr) return { error: dateErr };
 
   const { data, error } = await supabase
     .from("policies")
@@ -102,6 +114,9 @@ export async function createPolicy(customerId: string, formData: FormData): Prom
 
 export async function updatePolicyDetails(policyId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
+
+  const dateErr = coverageDateError(formData);
+  if (dateErr) return { error: dateErr };
 
   // Sales enters the insurer commission % themselves; the derived baht
   // amount stays hidden from them in the UI (manager-only display).
@@ -315,6 +330,30 @@ export async function renewPolicy(policyId: string, formData?: FormData): Promis
     .single();
 
   if (readErr || !old) return { error: readErr?.message ?? "ไม่พบกรมธรรม์เดิม" };
+
+  // Guard: never renew a STALE policy. If this customer+category already has a
+  // later-ending term, or something was already renewed from this exact policy,
+  // renewing again just makes a duplicate of a year that already exists — which
+  // is how old terms were being double-entered. Point staff at the latest one.
+  const [{ data: alreadyRenewed }, { data: newerTerm }] = await Promise.all([
+    supabase.from("policies").select("id").eq("renewed_from_policy_id", policyId).limit(1),
+    old.coverage_end_date
+      ? supabase
+          .from("policies")
+          .select("id")
+          .eq("customer_id", old.customer_id)
+          .eq("category_id", old.category_id)
+          .eq("is_endorsement", false)
+          .gt("coverage_end_date", old.coverage_end_date)
+          .limit(1)
+      : Promise.resolve({ data: null }),
+  ]);
+  if (alreadyRenewed && alreadyRenewed.length) {
+    return { error: "กรมธรรม์ใบนี้เคยถูกต่ออายุไปแล้ว — ไปต่อจากกรมธรรม์ปีล่าสุดของลูกค้าแทน (ไม่งั้นจะได้ใบซ้ำ)" };
+  }
+  if (newerTerm && newerTerm.length) {
+    return { error: "ลูกค้ามีกรมธรรม์ประเภทนี้ปีใหม่กว่าอยู่แล้ว — โปรดกด \"ต่ออายุ\" จากกรมธรรม์ใบล่าสุด (ไม่งั้นจะได้ใบซ้ำของปีเดิม)" };
+  }
 
   // New coverage runs from where the old one ends; if unknown, leave blank.
   const newStart = old.coverage_end_date ?? null;
