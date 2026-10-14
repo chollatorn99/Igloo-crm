@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/fetchAll";
+import { supersededPolicyIds, type RenewalTerm } from "@/lib/renewal";
 
 type Row = {
   id: string;
@@ -9,6 +10,7 @@ type Row = {
   coverage_end_date: string | null;
   insurance_company: string | null;
   policy_detail: string | null;
+  category_id: string | null;
   renewal_outcome: string;
   category: { name: string } | null;
   customer: { id: string; name: string } | null;
@@ -45,7 +47,7 @@ export default async function PoliciesListPage({
     let q = supabase
       .from("policies")
       .select(
-        "id, net_premium, closed_date, coverage_end_date, insurance_company, policy_detail, renewal_outcome, category:policy_categories(name), customer:customers!inner(id, name, owner_id)",
+        "id, net_premium, closed_date, coverage_end_date, insurance_company, policy_detail, category_id, renewal_outcome, category:policy_categories(name), customer:customers!inner(id, name, owner_id)",
       )
       .eq("deal_status", "win")
       .order("closed_date", { ascending: false })
@@ -68,7 +70,26 @@ export default async function PoliciesListPage({
     return q as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>;
   });
 
-  const total = rows.reduce((s, r) => s + Number(r.net_premium ?? 0), 0);
+  // Renewal-due view: drop rows whose customer already has a newer-term policy
+  // of the same category (already renewed as a new policy). A later term may
+  // fall outside the due window, so pull every term for these customers first.
+  let visibleRows = rows;
+  if (renewalMode && rows.length) {
+    const custIds = [...new Set(rows.map((r) => r.customer?.id).filter(Boolean) as string[])];
+    const terms = await fetchAll<RenewalTerm>((f, t) =>
+      supabase
+        .from("policies")
+        .select("id, customer_id, category_id, coverage_end_date")
+        .eq("deal_status", "win")
+        .eq("is_endorsement", false)
+        .in("customer_id", custIds)
+        .range(f, t) as unknown as PromiseLike<{ data: RenewalTerm[] | null; error: { message: string } | null }>,
+    );
+    const superseded = supersededPolicyIds(terms);
+    visibleRows = rows.filter((r) => !superseded.has(r.id));
+  }
+
+  const total = visibleRows.reduce((s, r) => s + Number(r.net_premium ?? 0), 0);
 
   return (
     <div className="p-8">
@@ -81,7 +102,7 @@ export default async function PoliciesListPage({
         {brand ? ` · แบรนด์ ${brand}` : ""}
       </h1>
       <p className="mb-6 text-xs text-slate-500">
-        {rows.length} รายการ{ownerName ? ` · Sales: ${ownerName}` : ""}
+        {visibleRows.length} รายการ{ownerName ? ` · Sales: ${ownerName}` : ""}
         {from && to ? ` · แจ้งงาน ${from} ถึง ${to}` : ""}
         {due_from && due_to ? ` · ครบกำหนด ${due_from} ถึง ${due_to}` : ""} · รวมเบี้ย {baht(total)} บาท
       </p>
@@ -101,7 +122,7 @@ export default async function PoliciesListPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((r) => (
+            {visibleRows.map((r) => (
               <tr key={r.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
                   <Link href={`/policies/${r.id}`} className="font-medium text-slate-900 hover:underline">
@@ -117,7 +138,7 @@ export default async function PoliciesListPage({
                 <td className="px-4 py-3 text-xs text-slate-500">{RENEWAL_LABEL[r.renewal_outcome] ?? "-"}</td>
               </tr>
             ))}
-            {rows.length === 0 && (
+            {visibleRows.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
                   ไม่มีรายการในช่วงที่เลือก

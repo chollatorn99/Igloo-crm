@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/fetchAll";
+import { supersededPolicyIds, type RenewalTerm } from "@/lib/renewal";
 import { DashboardCharts, type Slice } from "./dashboard-charts";
 
 type NoteRow = { author_id: string; created_at: string };
@@ -221,11 +222,11 @@ export default async function DashboardHome({
   // ===== Renewal win-rate: of the policies DUE to renew in the window (by
   // coverage_end), how many were renewed vs not — overall and per car brand.
   // Includes prospects (they are renewal opportunities). Scoped like the rest.
-  type DueRow = { policy_detail: string | null; renewal_outcome: string | null; coverage_end_date: string | null; customer: { owner_id: string } | null };
+  type DueRow = { id: string; customer_id: string | null; category_id: string | null; policy_detail: string | null; renewal_outcome: string | null; coverage_end_date: string | null; customer: { owner_id: string } | null };
   const dueRows = await fetchAll<DueRow>((f, t) => {
     let q = supabase
       .from("policies")
-      .select("policy_detail, renewal_outcome, coverage_end_date, customer:customers!inner(owner_id)")
+      .select("id, customer_id, category_id, policy_detail, renewal_outcome, coverage_end_date, customer:customers!inner(owner_id)")
       .eq("deal_status", "win")
       .eq("is_endorsement", false) // สลักหลังไม่นับเป็นรายการครบกำหนดต่อ
       .order("coverage_end_date")
@@ -234,14 +235,30 @@ export default async function DashboardHome({
     if (to) q = q.lte("coverage_end_date", to);
     return q as unknown as PromiseLike<{ data: DueRow[] | null; error: { message: string } | null }>;
   });
+  // A due policy already renewed as a new-term policy (same customer+category,
+  // later coverage_end) counts as renewed even if its own outcome is still
+  // "pending". The later term can be outside the window, so fetch all terms.
+  const dueCustIds = [...new Set(dueRows.map((r) => r.customer_id).filter(Boolean) as string[])];
+  const dueTerms = dueCustIds.length
+    ? await fetchAll<RenewalTerm>((f, t) =>
+        supabase
+          .from("policies")
+          .select("id, customer_id, category_id, coverage_end_date")
+          .eq("deal_status", "win")
+          .eq("is_endorsement", false)
+          .in("customer_id", dueCustIds)
+          .range(f, t) as unknown as PromiseLike<{ data: RenewalTerm[] | null; error: { message: string } | null }>,
+      )
+    : [];
+  const dueSuperseded = supersededPolicyIds(dueTerms);
   const renewAll = { due: 0, renewed: 0, notRenewed: 0 };
   const renewByBrand = new Map<string, { due: number; renewed: number; notRenewed: number }>();
   for (const r of dueRows) {
     const o = r.customer?.owner_id;
     if (!o || (scopeId && o !== scopeId)) continue;
     renewAll.due++;
-    const isR = r.renewal_outcome === "renewed";
-    const isN = r.renewal_outcome === "not_renewed";
+    const isR = r.renewal_outcome === "renewed" || dueSuperseded.has(r.id);
+    const isN = !isR && r.renewal_outcome === "not_renewed";
     if (isR) renewAll.renewed++;
     if (isN) renewAll.notRenewed++;
     const b = brandOf(r.policy_detail) ?? "อื่นๆ";
