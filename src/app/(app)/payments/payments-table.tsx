@@ -42,7 +42,25 @@ export function PaymentsTable({ rows, isManager }: { rows: PayRow[]; isManager: 
   const selectable = rows.filter((r) => r.payment_status === "awaiting_payment");
   const toggle = (id: string) =>
     setSel((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const selectedTotal = rows.filter((r) => sel.has(r.id)).reduce((s, r) => s + Number(r.total_premium ?? 0), 0);
+  const selectedRows = rows.filter((r) => sel.has(r.id));
+  const selectedTotal = selectedRows.reduce((s, r) => s + Number(r.total_premium ?? 0), 0);
+
+  // How many awaiting-payment policies each customer has in the current view —
+  // lets us offer a one-click "select this whole customer" shortcut.
+  const awaitingByCustomer = new Map<string, number>();
+  for (const r of selectable) {
+    if (!r.customer_id) continue;
+    awaitingByCustomer.set(r.customer_id, (awaitingByCustomer.get(r.customer_id) ?? 0) + 1);
+  }
+  const selectCustomer = (custId: string) =>
+    setSel((p) => { const n = new Set(p); for (const r of selectable) if (r.customer_id === custId) n.add(r.id); return n; });
+
+  const allSelected = selectable.length > 0 && selectable.every((r) => sel.has(r.id));
+  const toggleAll = () => setSel(allSelected ? new Set() : new Set(selectable.map((r) => r.id)));
+
+  // A combined transfer normally belongs to one customer — flag it if the tick
+  // set spans more than one so staff don't merge two customers by accident.
+  const selectedCustomers = new Set(selectedRows.map((r) => r.customer_id ?? r.id));
 
   async function submitBulk() {
     setLoading(true); setError(null);
@@ -75,6 +93,9 @@ export function PaymentsTable({ rows, isManager }: { rows: PayRow[]; isManager: 
       {sel.size > 0 && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
           <p className="mb-2 text-sm font-semibold text-blue-900">แจ้งชำระรวม {sel.size} กรมธรรม์ · ยอดตามกรมธรรม์ {baht(selectedTotal)} บาท</p>
+          {selectedCustomers.size > 1 && (
+            <p className="mb-2 text-xs font-medium text-amber-700">⚠️ เลือกข้ามลูกค้า {selectedCustomers.size} ราย — ปกติการโอนรวมควรเป็นลูกค้าเดียวกัน ตรวจสอบก่อนบันทึก</p>
+          )}
           <div className="flex flex-wrap items-end gap-2">
             <div>
               <label className="mb-1 block text-xs text-slate-600">ช่องทางที่ลูกค้าชำระ</label>
@@ -111,7 +132,17 @@ export function PaymentsTable({ rows, isManager }: { rows: PayRow[]; isManager: 
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-3"></th>
+              <th className="px-3 py-3">
+                {selectable.length > 0 && (
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="h-4 w-4"
+                    title="เลือกทั้งหมดที่รอชำระ"
+                  />
+                )}
+              </th>
               <th className="px-4 py-3">ลูกค้า</th>
               <th className="px-4 py-3">ประเภท</th>
               <th className="px-4 py-3">เบี้ยรวม</th>
@@ -135,6 +166,16 @@ export function PaymentsTable({ rows, isManager }: { rows: PayRow[]; isManager: 
                   </td>
                   <td className="px-4 py-3">
                     <Link href={`/policies/${r.id}`} className="font-medium text-slate-900 hover:underline">{r.customer_name ?? "-"}</Link>
+                    {r.payment_status === "awaiting_payment" && r.customer_id && (awaitingByCustomer.get(r.customer_id) ?? 0) > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => selectCustomer(r.customer_id!)}
+                        className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 hover:bg-blue-200"
+                        title="เลือกกรมธรรม์ที่รอชำระทั้งหมดของลูกค้ารายนี้"
+                      >
+                        + ทั้งลูกค้า ({awaitingByCustomer.get(r.customer_id)})
+                      </button>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{r.category ?? "-"}</td>
                   <td className="px-4 py-3 font-mono text-slate-600">{baht(Number(r.total_premium ?? 0))}</td>

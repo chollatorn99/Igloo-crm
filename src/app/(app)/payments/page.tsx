@@ -13,9 +13,9 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
 export default async function PaymentsQueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ status?: string; from?: string; to?: string; q?: string }>;
 }) {
-  const { status, from, to } = await searchParams;
+  const { status, from, to, q } = await searchParams;
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -29,15 +29,19 @@ export default async function PaymentsQueuePage({
   let query = supabase
     .from("policies")
     .select(
-      "id, payment_status, payment_reference, payment_date, amount_received, payment_channel, net_premium, total_premium, company_commission_amount, agent_commission_amount, net_commission_to_igloo, closed_date, category:policy_categories(name), customer:customers(id, name)",
+      "id, payment_status, payment_reference, payment_date, amount_received, payment_channel, net_premium, total_premium, company_commission_amount, agent_commission_amount, net_commission_to_igloo, closed_date, category:policy_categories(name), customer:customers!inner(id, name)",
     )
     .eq("deal_status", "win")
     .not("payment_status", "is", null)
+    // Customer first, then newest deal — so one customer's bundled policies
+    // (Motor + พ.ร.บ., IAR + PL + …) sit together and can be ticked in one go.
+    .order("name", { ascending: true, referencedTable: "customers" })
     .order("closed_date", { ascending: false });
 
   if (status) query = query.eq("payment_status", status);
   if (from) query = query.gte("closed_date", from);
   if (to) query = query.lte("closed_date", to);
+  if (q?.trim()) query = query.ilike("customers.name", `%${q.trim()}%`);
 
   const { data: policies } = await query;
 
@@ -88,14 +92,21 @@ export default async function PaymentsQueuePage({
 
       <form className="mb-3 flex flex-wrap items-center gap-2" action="/payments">
         {status && <input type="hidden" name="status" value={status} />}
+        <input
+          type="text"
+          name="q"
+          defaultValue={q ?? ""}
+          placeholder="ค้นหาชื่อลูกค้า…"
+          className="w-56 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+        />
         <span className="text-xs text-slate-400">วันแจ้งงาน:</span>
         <input type="date" name="from" defaultValue={from ?? ""} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
         <span className="text-xs text-slate-400">ถึง</span>
         <input type="date" name="to" defaultValue={to ?? ""} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />
-        <button className="rounded-md bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800">กรอง</button>
-        {(from || to) && (
+        <button className="rounded-md bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800">ค้นหา / กรอง</button>
+        {(from || to || q) && (
           <Link href={status ? `/payments?status=${status}` : "/payments"} className="text-xs text-blue-600 hover:underline">
-            ล้างช่วงวัน
+            ล้างตัวกรอง
           </Link>
         )}
       </form>
@@ -106,6 +117,7 @@ export default async function PaymentsQueuePage({
           if (t.key) qs.set("status", t.key);
           if (from) qs.set("from", from);
           if (to) qs.set("to", to);
+          if (q) qs.set("q", q);
           return (
             <Link
               key={t.key}
@@ -121,7 +133,7 @@ export default async function PaymentsQueuePage({
       </div>
 
       <p className="mb-3 text-xs text-slate-400">
-        ติ๊กเลือกรายการสถานะ &quot;รอลูกค้าชำระ&quot; แล้วกด &quot;แจ้งชำระรวม&quot; เพื่อบันทึกการโอนครั้งเดียวสำหรับลูกค้าที่จ่ายหลายกรมธรรม์พร้อมกัน
+        ลูกค้าจ่ายหลายกรมธรรม์พร้อมกัน (Motor + พ.ร.บ. / IAR + PL + …) ? ค้นหาชื่อลูกค้า → กด &quot;เลือกทั้งหมดที่รอชำระ&quot; หรือ &quot;+ ทั้งลูกค้า&quot; → กด &quot;แจ้งชำระรวม&quot; บันทึกการโอนครั้งเดียวได้เลย
       </p>
 
       <PaymentsTable
