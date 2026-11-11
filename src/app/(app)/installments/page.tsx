@@ -6,11 +6,15 @@ type PolicyRow = {
   id: string;
   installment_months: number | null;
   installment_amount: number | null;
+  installment_with: string | null;
+  installment_interest_rate: number | null;
   net_premium: number | null;
   total_premium: number | null;
   category: { name: string } | null;
   customer: { id: string; name: string } | null;
 };
+
+const WITH_LABEL: Record<string, string> = { igloo: "อิกลู โบรคเกอร์", insurer: "บริษัทประกัน" };
 
 const baht = (v: number) => v.toLocaleString("th-TH", { maximumFractionDigits: 2 });
 
@@ -26,7 +30,7 @@ export default async function InstallmentsPage({
   // accounting/support).
   const { data: policies } = await supabase
     .from("policies")
-    .select("id, installment_months, installment_amount, net_premium, total_premium, category:policy_categories(name), customer:customers(id, name)")
+    .select("id, installment_months, installment_amount, installment_with, installment_interest_rate, net_premium, total_premium, category:policy_categories(name), customer:customers(id, name)")
     .eq("is_installment", true)
     .eq("deal_status", "win")
     .order("closed_date", { ascending: false });
@@ -81,6 +85,19 @@ export default async function InstallmentsPage({
   const totalRemaining = cards.filter((c) => !c.done).reduce((s, c) => s + c.remaining, 0);
   const overdueCount = cards.filter((c) => c.overdue).length;
 
+  // Program summary report.
+  const zeroPct = cards.filter((c) => Number(c.p.installment_interest_rate ?? 0) === 0).length;
+  const withInterest = cards.length - zeroPct;
+  const withIgloo = cards.filter((c) => c.p.installment_with === "igloo").length;
+  const withInsurer = cards.filter((c) => c.p.installment_with === "insurer").length;
+  // Per-installment payment timeliness across every scheduled row.
+  let onTime = 0, late = 0, overdueUnpaid = 0, upcoming = 0;
+  for (const c of cards) for (const r of c.rows) {
+    if (r.paid) { if (r.paid_date && r.due_date && r.paid_date > r.due_date) late++; else onTime++; }
+    else if (r.due_date && r.due_date < today) overdueUnpaid++;
+    else upcoming++;
+  }
+
   const tabs = [
     { key: "", label: "ทั้งหมด" },
     { key: "active", label: "ยังผ่อนอยู่" },
@@ -95,6 +112,34 @@ export default async function InstallmentsPage({
         {cards.length} กรมธรรม์ที่ผ่อนชำระ · ยอดคงเหลือรวม {baht(totalRemaining)} บาท
         {overdueCount > 0 && <span className="text-rose-600"> · เลยกำหนด {overdueCount} ราย</span>}
       </p>
+
+      {/* สรุปรายงานโปรแกรมผ่อนชำระ */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-[11px] text-slate-500">เข้าโปรแกรมผ่อน</p>
+          <p className="text-lg font-semibold text-slate-900">{cards.length} <span className="text-xs font-normal text-slate-400">ราย</span></p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-[11px] text-slate-500">ผ่อน 0% / มีดอกเบี้ย</p>
+          <p className="text-lg font-semibold text-slate-900">{zeroPct} <span className="text-xs font-normal text-slate-400">/ {withInterest}</span></p>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-[11px] text-slate-500">ผ่อนกับอิกลู / บ.ประกัน</p>
+          <p className="text-lg font-semibold text-slate-900">{withIgloo} <span className="text-xs font-normal text-slate-400">/ {withInsurer}</span></p>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+          <p className="text-[11px] text-emerald-700">งวดจ่ายตรงเวลา</p>
+          <p className="text-lg font-semibold text-emerald-700">{onTime}</p>
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <p className="text-[11px] text-amber-700">งวดจ่ายช้า</p>
+          <p className="text-lg font-semibold text-amber-700">{late}</p>
+        </div>
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+          <p className="text-[11px] text-rose-700">งวดค้างชำระ (เลย due)</p>
+          <p className="text-lg font-semibold text-rose-700">{overdueUnpaid}</p>
+        </div>
+      </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
         {tabs.map((t) => (
@@ -117,6 +162,8 @@ export default async function InstallmentsPage({
             policyId={c.p.id}
             customerName={c.p.customer?.name ?? "-"}
             categoryName={c.p.category?.name ?? "-"}
+            withWhom={c.p.installment_with ? WITH_LABEL[c.p.installment_with] ?? c.p.installment_with : null}
+            interestRate={c.p.installment_interest_rate ?? 0}
             planMonths={c.p.installment_months}
             planAmount={c.p.installment_amount}
             paidCount={c.paidCount}

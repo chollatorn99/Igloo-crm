@@ -102,6 +102,8 @@ export async function createPolicy(customerId: string, formData: FormData): Prom
       is_installment: formData.get("is_installment") === "on",
       installment_months: numOrNull(formData.get("installment_months")),
       installment_amount: numOrNull(formData.get("installment_amount")),
+      installment_with: strOrNull(formData.get("installment_with")),
+      installment_interest_rate: numOrNull(formData.get("installment_interest_rate")) ?? 0,
       notes: strOrNull(formData.get("notes")),
     })
     .select("id")
@@ -179,6 +181,8 @@ export async function updatePolicyDetails(policyId: string, formData: FormData):
       is_installment: formData.get("is_installment") === "on",
       installment_months: numOrNull(formData.get("installment_months")),
       installment_amount: numOrNull(formData.get("installment_amount")),
+      installment_with: strOrNull(formData.get("installment_with")),
+      installment_interest_rate: numOrNull(formData.get("installment_interest_rate")) ?? 0,
       // Physical document tracking.
       policy_received: formData.get("policy_received") === "on",
       policy_received_date: strOrNull(formData.get("policy_received_date")),

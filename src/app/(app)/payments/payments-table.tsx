@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { reportPaymentBulk } from "./actions";
 
+const PAID_DIRECT = "จ่ายตรงกับบริษัทประกัน";
+const PAYMENT_CHANNELS = ["โอนเข้าบัญชีอิกลู", "เงินสด", "บัตรเครดิต", PAID_DIRECT, "อื่นๆ"];
+
 const PAYMENT_STATUS_LABEL: Record<string, string> = {
   awaiting_payment: "รอลูกค้าชำระ",
   awaiting_verification: "รอบัญชีตรวจสอบ",
@@ -24,6 +27,7 @@ export type PayRow = {
   payment_reference: string | null;
   payment_date: string | null;
   amount_received: number | null;
+  payment_channel: string | null;
 };
 
 export function PaymentsTable({ rows, isManager }: { rows: PayRow[]; isManager: boolean }) {
@@ -31,6 +35,7 @@ export function PaymentsTable({ rows, isManager }: { rows: PayRow[]; isManager: 
   const [ref, setRef] = useState("");
   const [date, setDate] = useState("");
   const [amount, setAmount] = useState("");
+  const [channel, setChannel] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,9 +52,10 @@ export function PaymentsTable({ rows, isManager }: { rows: PayRow[]; isManager: 
         reference: ref,
         date: date || null,
         amountReceived: amount === "" ? null : Number(amount),
+        channel: channel || null,
       });
       if (res.error) setError(res.error);
-      else { setSel(new Set()); setRef(""); setDate(""); setAmount(""); }
+      else { setSel(new Set()); setRef(""); setDate(""); setAmount(""); setChannel(""); }
     } finally { setLoading(false); }
   }
 
@@ -71,7 +77,14 @@ export function PaymentsTable({ rows, isManager }: { rows: PayRow[]; isManager: 
           <p className="mb-2 text-sm font-semibold text-blue-900">แจ้งชำระรวม {sel.size} กรมธรรม์ · ยอดตามกรมธรรม์ {baht(selectedTotal)} บาท</p>
           <div className="flex flex-wrap items-end gap-2">
             <div>
-              <label className="mb-1 block text-xs text-slate-600">เลขที่อ้างอิง *</label>
+              <label className="mb-1 block text-xs text-slate-600">ช่องทางที่ลูกค้าชำระ</label>
+              <select value={channel} onChange={(e) => setChannel(e.target.value)} className="w-48 rounded-md border border-slate-300 px-3 py-1.5 text-sm">
+                <option value="">— เลือกช่องทาง —</option>
+                {PAYMENT_CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-600">เลขที่อ้างอิง {channel === PAID_DIRECT ? "(ไม่บังคับ)" : "*"}</label>
               <input value={ref} onChange={(e) => setRef(e.target.value)} className="w-40 rounded-md border border-slate-300 px-3 py-1.5 text-sm" />
             </div>
             <div>
@@ -106,6 +119,7 @@ export function PaymentsTable({ rows, isManager }: { rows: PayRow[]; isManager: 
               <th className="px-4 py-3">ส่วนต่าง</th>
               {isManager && <th className="px-4 py-3">ค่าคอมสุทธิ</th>}
               <th className="px-4 py-3">สถานะ</th>
+              <th className="px-4 py-3">ช่องทาง</th>
               <th className="px-4 py-3">เลขอ้างอิง</th>
             </tr>
           </thead>
@@ -132,12 +146,13 @@ export function PaymentsTable({ rows, isManager }: { rows: PayRow[]; isManager: 
                       {PAYMENT_STATUS_LABEL[r.payment_status as string] ?? "-"}
                     </span>
                   </td>
+                  <td className={`px-4 py-3 text-xs ${r.payment_channel === PAID_DIRECT ? "font-medium text-indigo-600" : "text-slate-500"}`}>{r.payment_channel ?? "-"}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.payment_reference ?? "-"}</td>
                 </tr>
               );
             })}
             {rows.length === 0 && (
-              <tr><td colSpan={isManager ? 9 : 8} className="px-4 py-10 text-center text-slate-400">ไม่มีรายการ</td></tr>
+              <tr><td colSpan={isManager ? 10 : 9} className="px-4 py-10 text-center text-slate-400">ไม่มีรายการ</td></tr>
             )}
           </tbody>
         </table>

@@ -408,6 +408,29 @@ export default async function DashboardHome({
     </div>
   );
 
+  // ยอดประจำวันนี้ — won policies closed today, scoped; independent of the
+  // selected period so the daily figure is always current.
+  const todayStr = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  type TodayRow = { net_premium: number | null; company_commission_amount: number | null; customer: { owner_id: string } | null };
+  const todayRows = await fetchAll<TodayRow>((f, t) =>
+    supabase
+      .from("policies")
+      .select("net_premium, company_commission_amount, customer:customers!inner(owner_id)")
+      .eq("deal_status", "win")
+      .eq("is_prospect", false)
+      .eq("is_intercompany", false)
+      .eq("closed_date", todayStr)
+      .range(f, t) as unknown as PromiseLike<{ data: TodayRow[] | null; error: { message: string } | null }>,
+  );
+  const todayStat = { count: 0, premium: 0, commission: 0 };
+  for (const r of todayRows) {
+    const o = r.customer?.owner_id;
+    if (!o || (scopeId && o !== scopeId)) continue;
+    todayStat.count++;
+    todayStat.premium += Number(r.net_premium ?? 0);
+    todayStat.commission += Number(r.company_commission_amount ?? 0);
+  }
+
   return (
     <div className="p-8">
       <div className="mb-4">
@@ -470,6 +493,16 @@ export default async function DashboardHome({
         </form>
       )}
 
+      {/* ยอดประจำวันนี้ — shown before the period summary below */}
+      <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
+        <p className="mb-2 text-xs font-semibold text-sky-900">ยอดประจำวันนี้ ({todayStr})</p>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Card label="เบี้ยวันนี้ (สุทธิ)" value={baht(todayStat.premium)} sub={`${todayStat.count} กรมธรรม์`} accent="text-sky-700" />
+          {scopeEarns && <Card label="ค่าคอมวันนี้" value={baht(todayStat.commission)} accent="text-sky-700" />}
+        </div>
+      </div>
+
+      <p className="mb-2 text-xs font-semibold text-slate-500">ยอดประจำช่วง: {label}</p>
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card label="เบี้ยประกันสุทธิ" value={baht(scope.premium)} />
         <Card label="โทรติดตาม" value={baht(scope.calls)} />

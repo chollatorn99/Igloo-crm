@@ -29,7 +29,7 @@ export default async function PaymentsQueuePage({
   let query = supabase
     .from("policies")
     .select(
-      "id, payment_status, payment_reference, payment_date, amount_received, net_premium, total_premium, company_commission_amount, agent_commission_amount, net_commission_to_igloo, closed_date, category:policy_categories(name), customer:customers(id, name)",
+      "id, payment_status, payment_reference, payment_date, amount_received, payment_channel, net_premium, total_premium, company_commission_amount, agent_commission_amount, net_commission_to_igloo, closed_date, category:policy_categories(name), customer:customers(id, name)",
     )
     .eq("deal_status", "win")
     .not("payment_status", "is", null)
@@ -63,6 +63,7 @@ export default async function PaymentsQueuePage({
         }
       : {}),
     สถานะการชำระ: PAYMENT_STATUS_LABEL[p.payment_status as string] ?? "",
+    ช่องทางชำระ: (p as { payment_channel?: string | null }).payment_channel ?? "",
     เลขอ้างอิง: p.payment_reference,
     วันที่โอน: p.payment_date,
     วันที่ปิดดีล: p.closed_date,
@@ -137,6 +138,7 @@ export default async function PaymentsQueuePage({
           payment_reference: p.payment_reference as string | null,
           payment_date: p.payment_date as string | null,
           amount_received: (p as { amount_received?: number | null }).amount_received ?? null,
+          payment_channel: (p as { payment_channel?: string | null }).payment_channel ?? null,
         }))}
       />
     </div>

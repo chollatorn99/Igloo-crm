@@ -24,6 +24,8 @@ type Policy = {
   is_installment: boolean | null;
   installment_months: number | null;
   installment_amount: number | null;
+  installment_with: string | null;
+  installment_interest_rate: number | null;
   policy_received: boolean | null;
   policy_received_date: string | null;
   policy_sent: boolean | null;
@@ -303,7 +305,19 @@ export function PolicyEditForm({
               <label className="mb-1 block text-xs font-medium text-slate-600">เดือนละ (บาท)</label>
               <input type="number" step="0.01" name="installment_amount" defaultValue={policy.installment_amount ?? ""} className="w-36 rounded-md border border-slate-300 px-3 py-2 text-sm" />
             </div>
-            <p className="w-full text-[11px] text-slate-400">เปิดครั้งแรกจะสร้างตารางงวดให้ · ไปติ๊กจ่าย/แก้งวดได้ที่หน้า &quot;ติดตามการผ่อนชำระ&quot; (แก้ตรงนี้ไม่ลบงวดที่จ่ายแล้ว)</p>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">ผ่อนกับ</label>
+              <select name="installment_with" defaultValue={policy.installment_with ?? ""} className="w-40 rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <option value="">— เลือก —</option>
+                <option value="igloo">อิกลู โบรคเกอร์</option>
+                <option value="insurer">บริษัทประกัน</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">ดอกเบี้ย (%)</label>
+              <input type="number" step="0.01" name="installment_interest_rate" defaultValue={policy.installment_interest_rate ?? 0} className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <p className="w-full text-[11px] text-slate-400">ดอกเบี้ย 0 = 0% · เปิดครั้งแรกจะสร้างตารางงวดให้ · ไปติ๊กจ่าย/แก้งวดได้ที่หน้า &quot;ติดตามการผ่อนชำระ&quot; (แก้ตรงนี้ไม่ลบงวดที่จ่ายแล้ว)</p>
           </div>
         )}
       </div>

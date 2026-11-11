@@ -152,7 +152,19 @@ export function NewPolicyForm({
               <label className="mb-1 block text-xs font-medium text-slate-600">เดือนละ (บาท)</label>
               <input type="number" step="0.01" name="installment_amount" className="w-36 rounded-md border border-slate-300 px-3 py-2 text-sm" />
             </div>
-            <p className="w-full text-[11px] text-slate-400">ระบบจะสร้างตารางงวดให้อัตโนมัติ แล้วไปติ๊กจ่ายได้ที่หน้า &quot;ติดตามการผ่อนชำระ&quot;</p>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">ผ่อนกับ</label>
+              <select name="installment_with" defaultValue="" className="w-40 rounded-md border border-slate-300 px-3 py-2 text-sm">
+                <option value="">— เลือก —</option>
+                <option value="igloo">อิกลู โบรคเกอร์</option>
+                <option value="insurer">บริษัทประกัน</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">ดอกเบี้ย (%)</label>
+              <input type="number" step="0.01" name="installment_interest_rate" defaultValue={0} className="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <p className="w-full text-[11px] text-slate-400">ดอกเบี้ย 0 = ผ่อน 0% · ระบบจะสร้างตารางงวดให้อัตโนมัติ แล้วไปติ๊กจ่ายได้ที่หน้า &quot;ติดตามการผ่อนชำระ&quot;</p>
           </div>
         )}
       </div>

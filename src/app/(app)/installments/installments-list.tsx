@@ -21,6 +21,8 @@ export function InstallmentCard({
   policyId,
   customerName,
   categoryName,
+  withWhom,
+  interestRate,
   planMonths,
   planAmount,
   paidCount,
@@ -34,6 +36,8 @@ export function InstallmentCard({
   policyId: string;
   customerName: string;
   categoryName: string;
+  withWhom: string | null;
+  interestRate: number;
   planMonths: number | null;
   planAmount: number | null;
   paidCount: number;
@@ -66,6 +70,10 @@ export function InstallmentCard({
           <p className="truncate font-medium text-slate-900">
             {customerName}
             <span className="ml-2 text-xs font-normal text-slate-400">{categoryName}</span>
+            {withWhom && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">ผ่อนกับ{withWhom}</span>}
+            <span className={`ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium ${interestRate > 0 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+              {interestRate > 0 ? `ดอกเบี้ย ${interestRate}%` : "0%"}
+            </span>
           </p>
           <p className="text-xs text-slate-500">
             แผน {planMonths ?? totalCount} งวด{planAmount ? ` · งวดละ ${baht(Number(planAmount))}` : ""} · จ่ายแล้ว {paidCount}/{totalCount} ({baht(paidAmount)}) · เหลือ{" "}
@@ -110,7 +118,14 @@ export function InstallmentCard({
                         </span>
                       )}
                     </td>
-                    <td className="py-1.5 text-xs text-slate-500">{r.paid_date ?? "-"}</td>
+                    <td className="py-1.5 text-xs text-slate-500">
+                      {r.paid_date ?? "-"}
+                      {r.paid && r.paid_date && r.due_date && (
+                        r.paid_date > r.due_date
+                          ? <span className="ml-1 text-amber-600">· จ่ายช้า</span>
+                          : <span className="ml-1 text-emerald-600">· ตรงเวลา</span>
+                      )}
+                    </td>
                     <td className="py-1.5 text-right">
                       <button
                         onClick={() => toggle(r)}
