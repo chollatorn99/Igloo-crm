@@ -44,6 +44,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   ],
   support: [
     { label: "หน้าหลัก (Dashboard)", href: "/" },
+    { label: "Daily Report", href: "/daily-report" },
     { label: "ลูกค้า", href: "/customers" },
     { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
     { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
