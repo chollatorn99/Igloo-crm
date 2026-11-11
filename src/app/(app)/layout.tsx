@@ -8,6 +8,7 @@ type NavItem = { label: string; href: string };
 const NAV_BY_ROLE: Record<string, NavItem[]> = {
   manager: [
     { label: "หน้าหลัก (Dashboard)", href: "/" },
+    { label: "Daily Report", href: "/daily-report" },
     { label: "ลูกค้าทั้งหมด", href: "/customers" },
     { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
     { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
@@ -22,6 +23,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
   ],
   sales: [
     { label: "หน้าหลัก (Dashboard)", href: "/" },
+    { label: "Daily Report", href: "/daily-report" },
     { label: "ลูกค้าของฉัน", href: "/customers" },
     { label: "แจ้งเตือนต่ออายุ", href: "/renewals" },
     { label: "คิวตรวจสอบการชำระเงิน", href: "/payments" },
