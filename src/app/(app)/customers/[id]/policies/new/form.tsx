@@ -20,6 +20,7 @@ export function NewPolicyForm({
   const [vat, setVat] = useState(0);
   const totalPremium = net + stamp + vat;
   const [withPrb, setWithPrb] = useState(false);
+  const [installment, setInstallment] = useState(false);
 
   async function handleSubmit(formData: FormData) {
     setSubmitting(true);
@@ -133,6 +134,27 @@ export function NewPolicyForm({
           <label className="mb-1 block text-xs font-medium text-slate-600">% ค่าคอม Agent</label>
           <input type="number" step="0.01" name="agent_commission_rate" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
+      </div>
+
+      {/* Installment plan — customer pays the insurer in monthly instalments. */}
+      <div className="rounded-md border border-sky-200 bg-sky-50 p-3">
+        <label className="flex items-center gap-2 text-sm text-sky-900">
+          <input type="checkbox" name="is_installment" checked={installment} onChange={(e) => setInstallment(e.target.checked)} className="h-4 w-4" />
+          ผ่อนชำระกับบริษัท (แบ่งจ่ายรายเดือน)
+        </label>
+        {installment && (
+          <div className="mt-2 flex flex-wrap gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">จำนวนงวด (เดือน)</label>
+              <input type="number" name="installment_months" min={1} max={60} className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">เดือนละ (บาท)</label>
+              <input type="number" step="0.01" name="installment_amount" className="w-36 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <p className="w-full text-[11px] text-slate-400">ระบบจะสร้างตารางงวดให้อัตโนมัติ แล้วไปติ๊กจ่ายได้ที่หน้า &quot;ติดตามการผ่อนชำระ&quot;</p>
+          </div>
+        )}
       </div>
 
       {/* Group / affiliated-company work — kept out of normal sales & commission totals. */}

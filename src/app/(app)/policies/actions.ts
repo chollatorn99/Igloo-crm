@@ -50,6 +50,32 @@ function coverageDateError(formData: FormData): string | null {
   return null;
 }
 
+function addMonths(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// Build the monthly schedule rows for an installment plan: งวดที่ 1..N, due a
+// month apart starting from the policy's coverage start (fallback: today).
+async function generateInstallmentSchedule(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  policyId: string,
+  months: number,
+  amount: number | null,
+  baseDate: string | null,
+) {
+  if (!months || months < 1) return;
+  const base = baseDate ?? new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const rows = Array.from({ length: Math.min(months, 60) }, (_, i) => ({
+    policy_id: policyId,
+    installment_no: i + 1,
+    due_date: addMonths(base, i),
+    amount,
+  }));
+  await supabase.from("installment_payments").insert(rows);
+}
+
 export async function createPolicy(customerId: string, formData: FormData): Promise<ActionResult> {
   const supabase = await createClient();
 
@@ -73,12 +99,22 @@ export async function createPolicy(customerId: string, formData: FormData): Prom
       agent_commission_rate: numOrNull(formData.get("agent_commission_rate")),
       customer_discount_amount: numOrNull(formData.get("customer_discount_amount")) ?? 0,
       is_intercompany: formData.get("is_intercompany") === "on",
+      is_installment: formData.get("is_installment") === "on",
+      installment_months: numOrNull(formData.get("installment_months")),
+      installment_amount: numOrNull(formData.get("installment_amount")),
       notes: strOrNull(formData.get("notes")),
     })
     .select("id")
     .single();
 
   if (error) return { error: error.message };
+
+  // Installment plan → lay out the monthly schedule rows for the tracking page.
+  if (formData.get("is_installment") === "on") {
+    const months = Number(numOrNull(formData.get("installment_months")) ?? 0);
+    const perMonth = numOrNull(formData.get("installment_amount"));
+    await generateInstallmentSchedule(supabase, data.id, months, perMonth, strOrNull(formData.get("coverage_start_date")));
+  }
 
   // Optionally issue the compulsory พ.ร.บ. alongside the voluntary motor policy,
   // ticked on the same form, so staff enter both in one go.
@@ -140,6 +176,9 @@ export async function updatePolicyDetails(policyId: string, formData: FormData):
       agent_commission_rate: numOrNull(formData.get("agent_commission_rate")),
       customer_discount_amount: numOrNull(formData.get("customer_discount_amount")) ?? 0,
       is_intercompany: formData.get("is_intercompany") === "on",
+      is_installment: formData.get("is_installment") === "on",
+      installment_months: numOrNull(formData.get("installment_months")),
+      installment_amount: numOrNull(formData.get("installment_amount")),
       // Physical document tracking.
       policy_received: formData.get("policy_received") === "on",
       policy_received_date: strOrNull(formData.get("policy_received_date")),
@@ -151,7 +190,23 @@ export async function updatePolicyDetails(policyId: string, formData: FormData):
     .eq("id", policyId);
 
   if (error) return { error: error.message };
+
+  // If installment was just enabled (or edited) and no schedule exists yet,
+  // lay it out. Existing schedules are left alone so paid rows aren't wiped.
+  if (formData.get("is_installment") === "on") {
+    const { count } = await supabase
+      .from("installment_payments")
+      .select("id", { count: "exact", head: true })
+      .eq("policy_id", policyId);
+    if (!count) {
+      const months = Number(numOrNull(formData.get("installment_months")) ?? 0);
+      const perMonth = numOrNull(formData.get("installment_amount"));
+      await generateInstallmentSchedule(supabase, policyId, months, perMonth, strOrNull(formData.get("coverage_start_date")));
+    }
+  }
+
   revalidatePath(`/policies/${policyId}`);
+  revalidatePath("/installments");
   return {};
 }
 

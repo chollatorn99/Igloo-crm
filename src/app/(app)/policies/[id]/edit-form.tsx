@@ -21,6 +21,9 @@ type Policy = {
   agent_commission_rate: number | null;
   customer_discount_amount: number | null;
   is_intercompany: boolean | null;
+  is_installment: boolean | null;
+  installment_months: number | null;
+  installment_amount: number | null;
   policy_received: boolean | null;
   policy_received_date: string | null;
   policy_sent: boolean | null;
@@ -44,6 +47,7 @@ export function PolicyEditForm({
   const [net, setNet] = useState(policy.net_premium ?? 0);
   const [stamp, setStamp] = useState(policy.stamp_duty ?? 0);
   const [vat, setVat] = useState(policy.vat ?? 0);
+  const [installment, setInstallment] = useState(policy.is_installment ?? false);
   const totalPremium = net + stamp + vat;
 
   async function handleSubmit(formData: FormData) {
@@ -282,6 +286,26 @@ export function PolicyEditForm({
           <input type="checkbox" name="is_intercompany" defaultChecked={policy.is_intercompany ?? false} className="h-4 w-4" />
           งานบริษัทในเครือ (ไม่นับรวมยอดขาย/ค่าคอม — แยกเป็นก้อนในแดชบอร์ด)
         </label>
+      </div>
+
+      <div className="rounded-md border border-sky-200 bg-sky-50 p-3">
+        <label className="flex items-center gap-2 text-sm text-sky-900">
+          <input type="checkbox" name="is_installment" checked={installment} onChange={(e) => setInstallment(e.target.checked)} className="h-4 w-4" />
+          ผ่อนชำระกับบริษัท (แบ่งจ่ายรายเดือน)
+        </label>
+        {installment && (
+          <div className="mt-2 flex flex-wrap gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">จำนวนงวด (เดือน)</label>
+              <input type="number" name="installment_months" min={1} max={60} defaultValue={policy.installment_months ?? ""} className="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">เดือนละ (บาท)</label>
+              <input type="number" step="0.01" name="installment_amount" defaultValue={policy.installment_amount ?? ""} className="w-36 rounded-md border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <p className="w-full text-[11px] text-slate-400">เปิดครั้งแรกจะสร้างตารางงวดให้ · ไปติ๊กจ่าย/แก้งวดได้ที่หน้า &quot;ติดตามการผ่อนชำระ&quot; (แก้ตรงนี้ไม่ลบงวดที่จ่ายแล้ว)</p>
+          </div>
+        )}
       </div>
 
       <div>
