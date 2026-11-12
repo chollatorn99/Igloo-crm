@@ -60,6 +60,12 @@ export function NewPolicyForm({
         <input name="policy_detail" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
       </div>
 
+      <div>
+        <label className="mb-1 block text-xs font-medium text-slate-600">สาขา / ที่ตั้ง (ถ้ามีหลายสาขา)</label>
+        <input name="branch_name" placeholder="เช่น ปตท. สาขาลาดพร้าว — ใส่เหมือนกันทุกใบของสาขานี้" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        <p className="mt-1 text-[11px] text-slate-400">งานพาณิชย์หลายกรมธรรม์/สาขา (IAR + PL + พ.ร.บ. + ประกันเงิน) ใส่ชื่อสาขาเดียวกันทุกใบ ระบบจะนับเป็น 1 ยูนิตต่อสาขา</p>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">วันที่เริ่มคุ้มครอง</label>

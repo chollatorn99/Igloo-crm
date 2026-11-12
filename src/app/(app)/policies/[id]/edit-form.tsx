@@ -8,6 +8,7 @@ type Policy = {
   category: { id: string } | null;
   insurance_company: string | null;
   policy_detail: string | null;
+  branch_name: string | null;
   coverage_start_date: string | null;
   coverage_end_date: string | null;
   closed_date: string | null;
@@ -100,6 +101,16 @@ export function PolicyEditForm({
         <input
           name="policy_detail"
           defaultValue={policy.policy_detail ?? ""}
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-medium text-slate-600">สาขา / ที่ตั้ง (ถ้ามีหลายสาขา)</label>
+        <input
+          name="branch_name"
+          defaultValue={policy.branch_name ?? ""}
+          placeholder="เช่น ปตท. สาขาลาดพร้าว — ใส่เหมือนกันทุกใบของสาขานี้"
           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
       </div>

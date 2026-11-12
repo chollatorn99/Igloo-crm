@@ -89,6 +89,7 @@ export async function createPolicy(customerId: string, formData: FormData): Prom
       category_id: formData.get("category_id"),
       insurance_company: strOrNull(formData.get("insurance_company")),
       policy_detail: strOrNull(formData.get("policy_detail")),
+      branch_name: strOrNull(formData.get("branch_name")),
       coverage_start_date: strOrNull(formData.get("coverage_start_date")),
       coverage_end_date: strOrNull(formData.get("coverage_end_date")),
       net_premium: numOrNull(formData.get("net_premium")),
@@ -128,6 +129,7 @@ export async function createPolicy(customerId: string, formData: FormData): Prom
         category_id: prbCat.id,
         insurance_company: strOrNull(formData.get("insurance_company")),
         policy_detail: strOrNull(formData.get("policy_detail")),
+        branch_name: strOrNull(formData.get("branch_name")),
         coverage_start_date: strOrNull(formData.get("coverage_start_date")),
         coverage_end_date: strOrNull(formData.get("coverage_end_date")),
         net_premium: numOrNull(formData.get("prb_premium")) ?? 600,
@@ -164,6 +166,7 @@ export async function updatePolicyDetails(policyId: string, formData: FormData):
       category_id: formData.get("category_id"),
       insurance_company: strOrNull(formData.get("insurance_company")),
       policy_detail: strOrNull(formData.get("policy_detail")),
+      branch_name: strOrNull(formData.get("branch_name")),
       coverage_start_date: strOrNull(formData.get("coverage_start_date")),
       coverage_end_date: strOrNull(formData.get("coverage_end_date")),
       // วันแจ้งงาน — the date the dashboard counts the sale by (not coverage).

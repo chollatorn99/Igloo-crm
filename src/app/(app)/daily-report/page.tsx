@@ -9,13 +9,10 @@ type Row = {
   policy_detail: string | null;
   renewed_from_policy_id: string | null;
   deal_status: string;
+  branch_name: string | null;
   category: { name: string } | null;
   customer: { id: string; owner_id: string } | null;
 };
-
-// พ.ร.บ. (compulsory) is issued alongside a voluntary motor policy with the
-// SAME customer + policy_detail, so Motor + พ.ร.บ. is one car, not two.
-const PRB_CATS = new Set(["พรบ.รถ", "พรบ.ปั้ม"]);
 
 // BRG Motors report buckets (per the owner's mapping):
 //  BRG    = imported cars: Alphard / Vellfire, Porsche, Mercedes-Benz
@@ -65,7 +62,7 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
   const lastYearStart = `${y - 1}-${String(m).padStart(2, "0")}-01`;
   const lastYearEnd = new Date(Date.UTC(y - 1, m, 0)).toISOString().slice(0, 10); // last day of that month
 
-  const sel = "net_premium, closed_date, policy_detail, renewed_from_policy_id, deal_status, category:policy_categories(name), customer:customers!inner(id, owner_id)";
+  const sel = "net_premium, closed_date, policy_detail, renewed_from_policy_id, deal_status, branch_name, category:policy_categories(name), customer:customers!inner(id, owner_id)";
   const base = () =>
     supabase.from("policies").select(sel).eq("is_prospect", false).eq("is_intercompany", false).eq("customer.owner_id", ownerId);
 
@@ -81,30 +78,31 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
   const winToday = winMtd.filter((r) => r.closed_date === today);
   const lostMtd = mtdRows.filter((r) => r.deal_status === "lost");
 
-  const carKey = (r: Row) => `${r.customer?.id ?? ""}|${(r.policy_detail ?? "").trim().toUpperCase()}`;
+  // A "unit" is one insured thing / one deal, not one policy document, so a
+  // bundle sold together counts once:
+  //  - branch filled → one unit per branch (customer + branch): a petrol chain
+  //    buying IAR + PL + พ.ร.บ. + ประกันเงิน per site = 1 unit/site.
+  //  - car brand, no branch → one unit per car (customer + policy_detail): the
+  //    compulsory พ.ร.บ. copies the motor policy_detail, so the pair counts once.
+  //  - otherwise (misc / commercial, no branch) → one unit per customer per day,
+  //    so a single-site bundle still counts once; split sites by filling branch.
+  const dealKey = (r: Row, brand: string) => {
+    const cust = r.customer?.id ?? "";
+    if (r.branch_name?.trim()) return `br|${cust}|${r.branch_name.trim().toUpperCase()}`;
+    if (brand !== "อื่นๆ") return `car|${cust}|${(r.policy_detail ?? "").trim().toUpperCase()}`;
+    return `day|${cust}|${r.closed_date ?? ""}`;
+  };
   const brandSum = (rows: Row[]) => {
-    const map = new Map<string, { units: number; premium: number }>();
-    // Per brand, which cars already have a voluntary (non-พ.ร.บ.) policy — a
-    // พ.ร.บ. on such a car is the compulsory companion, not a separate unit.
-    const voluntaryCars = new Map<string, Set<string>>();
-    for (const r of rows) {
-      const b = brandOf(r.policy_detail);
-      if (!b || PRB_CATS.has(r.category?.name ?? "")) continue;
-      const s = voluntaryCars.get(b) ?? new Set<string>();
-      s.add(carKey(r)); voluntaryCars.set(b, s);
-    }
+    const map = new Map<string, { units: Set<string>; premium: number }>();
     for (const r of rows) {
       const b = brandOf(r.policy_detail);
       if (!b) continue;
-      const g = map.get(b) ?? { units: 0, premium: 0 };
+      const g = map.get(b) ?? { units: new Set<string>(), premium: 0 };
       g.premium += Number(r.net_premium ?? 0); // premium still counts every policy
-      // 1 unit per voluntary policy; a พ.ร.บ. adds a unit only when it stands
-      // alone (no motor policy on the same car).
-      const isPrb = PRB_CATS.has(r.category?.name ?? "");
-      if (!isPrb || !voluntaryCars.get(b)?.has(carKey(r))) g.units++;
+      g.units.add(dealKey(r, b)); // distinct deals = units
       map.set(b, g);
     }
-    return map;
+    return new Map([...map.entries()].map(([b, g]) => [b, { units: g.units.size, premium: g.premium }]));
   };
 
   // Calls logged today (follow-up notes), excluding the dedup housekeeping note.
