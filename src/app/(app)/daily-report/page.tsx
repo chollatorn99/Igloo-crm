@@ -48,6 +48,11 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
     ? (await supabase.from("profiles").select("id, full_name").in("role", ["sales", "manager"]).order("full_name")).data ?? []
     : [];
   const ownerId = isManager ? sales || user!.id : supportOwnerId ?? user!.id;
+  // Default report layout follows the person the report is for (set per profile:
+  // พี่มุก = BRG Motors, everyone else = general), not whether they happen to
+  // have car sales. The ทั่วไป / BRG Motors toggle still overrides per view.
+  const { data: ownerProfile } = await supabase.from("profiles").select("report_template").eq("id", ownerId).maybeSingle();
+  const prefTemplate = ownerProfile?.report_template === "motor" ? "motor" : "general";
   let ownerName = me?.full_name ?? "";
   if (isManager) ownerName = people.find((p) => p.id === ownerId)?.full_name ?? me?.full_name ?? "";
   else if (isSupport && supportOwnerId) {
@@ -145,7 +150,7 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
     month,
   };
 
-  const tpl = template === "motor" || template === "general" ? template : data.brandsMtd.length > 0 ? "motor" : "general";
+  const tpl = template === "motor" || template === "general" ? template : prefTemplate;
 
   return (
     <div className="p-8">
