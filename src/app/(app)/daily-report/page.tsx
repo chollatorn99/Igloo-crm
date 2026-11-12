@@ -10,8 +10,12 @@ type Row = {
   renewed_from_policy_id: string | null;
   deal_status: string;
   category: { name: string } | null;
-  customer: { owner_id: string } | null;
+  customer: { id: string; owner_id: string } | null;
 };
+
+// พ.ร.บ. (compulsory) is issued alongside a voluntary motor policy with the
+// SAME customer + policy_detail, so Motor + พ.ร.บ. is one car, not two.
+const PRB_CATS = new Set(["พรบ.รถ", "พรบ.ปั้ม"]);
 
 // BRG Motors report buckets (per the owner's mapping):
 //  BRG    = imported cars: Alphard / Vellfire, Porsche, Mercedes-Benz
@@ -61,7 +65,7 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
   const lastYearStart = `${y - 1}-${String(m).padStart(2, "0")}-01`;
   const lastYearEnd = new Date(Date.UTC(y - 1, m, 0)).toISOString().slice(0, 10); // last day of that month
 
-  const sel = "net_premium, closed_date, policy_detail, renewed_from_policy_id, deal_status, category:policy_categories(name), customer:customers!inner(owner_id)";
+  const sel = "net_premium, closed_date, policy_detail, renewed_from_policy_id, deal_status, category:policy_categories(name), customer:customers!inner(id, owner_id)";
   const base = () =>
     supabase.from("policies").select(sel).eq("is_prospect", false).eq("is_intercompany", false).eq("customer.owner_id", ownerId);
 
@@ -77,13 +81,27 @@ export default async function DailyReportPage({ searchParams }: { searchParams: 
   const winToday = winMtd.filter((r) => r.closed_date === today);
   const lostMtd = mtdRows.filter((r) => r.deal_status === "lost");
 
+  const carKey = (r: Row) => `${r.customer?.id ?? ""}|${(r.policy_detail ?? "").trim().toUpperCase()}`;
   const brandSum = (rows: Row[]) => {
     const map = new Map<string, { units: number; premium: number }>();
+    // Per brand, which cars already have a voluntary (non-พ.ร.บ.) policy — a
+    // พ.ร.บ. on such a car is the compulsory companion, not a separate unit.
+    const voluntaryCars = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const b = brandOf(r.policy_detail);
+      if (!b || PRB_CATS.has(r.category?.name ?? "")) continue;
+      const s = voluntaryCars.get(b) ?? new Set<string>();
+      s.add(carKey(r)); voluntaryCars.set(b, s);
+    }
     for (const r of rows) {
       const b = brandOf(r.policy_detail);
       if (!b) continue;
       const g = map.get(b) ?? { units: 0, premium: 0 };
-      g.units++; g.premium += Number(r.net_premium ?? 0);
+      g.premium += Number(r.net_premium ?? 0); // premium still counts every policy
+      // 1 unit per voluntary policy; a พ.ร.บ. adds a unit only when it stands
+      // alone (no motor policy on the same car).
+      const isPrb = PRB_CATS.has(r.category?.name ?? "");
+      if (!isPrb || !voluntaryCars.get(b)?.has(carKey(r))) g.units++;
       map.set(b, g);
     }
     return map;
